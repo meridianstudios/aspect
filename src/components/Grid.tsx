@@ -6,7 +6,15 @@ import {
   setDensity,
   getImagesOnly,
   setImagesOnly,
+  getSort,
+  setSort,
+  getTypeFilter,
+  setTypeFilter,
   type Density,
+  type SortKey,
+  type SortDir,
+  type SortPref,
+  type TypeFilter,
 } from "../lib/store";
 import {
   Logo,
@@ -15,12 +23,51 @@ import {
   FlagFill,
   Export,
   ChevronLeft,
+  ChevronDown,
   Picture,
   FileIcon,
   Check,
+  Funnel,
+  Sort as SortIcon,
 } from "../lib/icons";
+import Dropdown from "./Dropdown";
 
 const THUMB = 360;
+
+const SORT_LABEL: Record<SortKey, string> = {
+  name: "Name",
+  date: "Date",
+  size: "Size",
+  type: "Type",
+};
+const DEFAULT_DIR: Record<SortKey, SortDir> = {
+  name: "asc",
+  date: "desc",
+  size: "desc",
+  type: "asc",
+};
+
+const collate = (a: string, b: string) =>
+  a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+
+const extOf = (n: string) => {
+  const i = n.lastIndexOf(".");
+  return i >= 0 ? n.slice(i + 1).toLowerCase() : "";
+};
+
+function applySort(arr: ImageEntry[], key: SortKey, dir: SortDir): ImageEntry[] {
+  const m = dir === "asc" ? 1 : -1;
+  const out = [...arr];
+  out.sort((a, b) => {
+    let r = 0;
+    if (key === "name") r = collate(a.name, b.name);
+    else if (key === "date") r = a.modified - b.modified;
+    else if (key === "size") r = a.size - b.size;
+    else r = collate(extOf(a.name), extOf(b.name)) || collate(a.name, b.name);
+    return r * m;
+  });
+  return out;
+}
 
 export default function Grid({
   path,
@@ -46,8 +93,11 @@ export default function Grid({
   const [files, setFiles] = useState<ImageEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [sel, setSel] = useState(0);
-  const [imagesOnly, setImagesOnlyState] = useState(getImagesOnly());
   const [density, setDensityState] = useState<Density>(getDensity());
+  const [imagesOnly, setImagesOnlyState] = useState(getImagesOnly());
+  const [typeFilter, setTypeFilterState] = useState<TypeFilter>(getTypeFilter());
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
+  const [sort, setSortState] = useState<SortPref>(getSort());
   const gridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -64,36 +114,64 @@ export default function Grid({
       });
   }, [path, name, onLoaded]);
 
-  const images = useMemo(() => files.filter((f) => f.image), [files]);
-  const visible = useMemo(
-    () => (imagesOnly ? images : files),
-    [imagesOnly, images, files],
-  );
-  const otherCount = files.length - images.length;
+  const allImages = useMemo(() => files.filter((f) => f.image), [files]);
 
-  useEffect(() => setSel(0), [imagesOnly, path]);
+  const filtered = useMemo(() => {
+    let list = files;
+    if (typeFilter === "raw") list = list.filter((f) => f.raw);
+    else if (typeFilter === "photos") list = list.filter((f) => f.image && !f.raw);
+    else if (imagesOnly) list = list.filter((f) => f.image);
+    if (flaggedOnly) list = list.filter((f) => flags.has(f.path));
+    return list;
+  }, [files, typeFilter, imagesOnly, flaggedOnly, flags]);
+
+  const visible = useMemo(
+    () => applySort(filtered, sort.key, sort.dir),
+    [filtered, sort],
+  );
+  const visibleImages = useMemo(() => visible.filter((f) => f.image), [visible]);
+
+  const filterActive = !imagesOnly || typeFilter !== "all" || flaggedOnly;
+  const flaggedCount = useMemo(
+    () => allImages.reduce((n, im) => n + (flags.has(im.path) ? 1 : 0), 0),
+    [allImages, flags],
+  );
+
+  useEffect(
+    () => setSel(0),
+    [path, imagesOnly, typeFilter, flaggedOnly, sort],
+  );
 
   const toggleImagesOnly = () => {
     const v = !imagesOnly;
     setImagesOnlyState(v);
     setImagesOnly(v);
   };
+  const chooseType = (t: TypeFilter) => {
+    setTypeFilterState(t);
+    setTypeFilter(t);
+  };
   const chooseDensity = (d: Density) => {
     setDensityState(d);
     setDensity(d);
   };
-
-  const flaggedCount = useMemo(
-    () => images.reduce((n, im) => n + (flags.has(im.path) ? 1 : 0), 0),
-    [images, flags],
-  );
+  const chooseSort = (k: SortKey) => {
+    setSortState((prev) => {
+      const next: SortPref =
+        prev.key === k
+          ? { key: k, dir: prev.dir === "asc" ? "desc" : "asc" }
+          : { key: k, dir: DEFAULT_DIR[k] };
+      setSort(next);
+      return next;
+    });
+  };
 
   const openImage = useCallback(
     (file: ImageEntry) => {
-      const idx = images.findIndex((im) => im.path === file.path);
-      if (idx >= 0) onOpenViewer(images, idx);
+      const idx = visibleImages.findIndex((im) => im.path === file.path);
+      if (idx >= 0) onOpenViewer(visibleImages, idx);
     },
-    [images, onOpenViewer],
+    [visibleImages, onOpenViewer],
   );
 
   const colCount = useCallback(() => {
@@ -136,6 +214,12 @@ export default function Grid({
     el?.scrollIntoView({ block: "nearest" });
   }, [sel]);
 
+  const shown = visibleImages.length;
+  const countText =
+    shown === allImages.length
+      ? `${allImages.length} photo${allImages.length === 1 ? "" : "s"}`
+      : `${shown} of ${allImages.length} photos`;
+
   return (
     <div className="view grid-view">
       <header className="topbar">
@@ -154,24 +238,81 @@ export default function Grid({
             {name}
           </span>
         </div>
-        <span className="count-pill">
-          {images.length} photo{images.length === 1 ? "" : "s"}
-          {!imagesOnly && otherCount > 0 ? ` · ${otherCount} other` : ""}
-        </span>
+        <span className="count-pill">{countText}</span>
         <div className="spacer" />
 
-        <label
-          className={"check" + (imagesOnly ? " on" : "")}
-          title="Show only image files"
+        <Dropdown label="Filter" icon={<Funnel size={15} />} active={filterActive}>
+          <label className="menu-item menu-check">
+            <input
+              type="checkbox"
+              checked={imagesOnly}
+              onChange={toggleImagesOnly}
+            />
+            <span className={"menu-box" + (imagesOnly ? " on" : "")}>
+              {imagesOnly && <Check size={12} />}
+            </span>
+            Images only
+          </label>
+          <div className="menu-sep" />
+          <div className="menu-label">Type</div>
+          {(
+            [
+              ["all", "All images"],
+              ["photos", "Photos only"],
+              ["raw", "RAW only"],
+            ] as [TypeFilter, string][]
+          ).map(([k, lbl]) => (
+            <button
+              key={k}
+              className={"menu-item" + (typeFilter === k ? " on" : "")}
+              onClick={() => chooseType(k)}
+            >
+              <span className="menu-box radio">
+                {typeFilter === k && <span className="dot" />}
+              </span>
+              {lbl}
+            </button>
+          ))}
+          <div className="menu-sep" />
+          <label className="menu-item menu-check">
+            <input
+              type="checkbox"
+              checked={flaggedOnly}
+              onChange={() => setFlaggedOnly((v) => !v)}
+            />
+            <span className={"menu-box" + (flaggedOnly ? " on" : "")}>
+              {flaggedOnly && <Check size={12} />}
+            </span>
+            Flagged only
+          </label>
+        </Dropdown>
+
+        <Dropdown
+          label={`Sort: ${SORT_LABEL[sort.key]}`}
+          icon={<SortIcon size={15} />}
+          align="right"
         >
-          <input
-            type="checkbox"
-            checked={imagesOnly}
-            onChange={toggleImagesOnly}
-          />
-          <span className="check-box">{imagesOnly && <Check size={13} />}</span>
-          Images only
-        </label>
+          {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
+            <button
+              key={k}
+              className={"menu-item" + (sort.key === k ? " on" : "")}
+              onClick={() => chooseSort(k)}
+            >
+              {SORT_LABEL[k]}
+              {sort.key === k && (
+                <span className="menu-dir">
+                  <ChevronDown
+                    size={13}
+                    style={{
+                      transform:
+                        sort.dir === "asc" ? "rotate(180deg)" : "none",
+                    }}
+                  />
+                </span>
+              )}
+            </button>
+          ))}
+        </Dropdown>
 
         <div className="seg" role="group" aria-label="Thumbnail size">
           {(["s", "m", "l"] as Density[]).map((d) => (
@@ -189,7 +330,7 @@ export default function Grid({
         <button
           className="btn primary"
           disabled={flaggedCount === 0}
-          onClick={() => onExport(images)}
+          onClick={() => onExport(allImages)}
         >
           <Export size={16} />
           {flaggedCount > 0 ? `Export ${flaggedCount} flagged` : "Export flagged"}
@@ -203,11 +344,16 @@ export default function Grid({
       ) : visible.length === 0 ? (
         <div className="empty big">
           <Picture size={42} />
-          <p>{imagesOnly ? "No photos in this folder." : "This folder is empty."}</p>
-          {imagesOnly && files.length > 0 && (
+          <p>
+            {files.length === 0
+              ? "No photos in this folder."
+              : "Nothing matches the current filter."}
+          </p>
+          {files.length > 0 && (
             <span className="muted">
-              {files.length} non-image file{files.length === 1 ? "" : "s"}{" "}
-              hidden. Turn off "Images only" to see them.
+              {flaggedOnly
+                ? "No flagged photos here yet."
+                : "Try adjusting the filter."}
             </span>
           )}
         </div>

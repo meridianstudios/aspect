@@ -617,6 +617,126 @@ body {
   border-color: var(--accent);
 }
 
+/* dropdown menus (filter / sort) */
+.menu {
+  position: relative;
+  display: inline-flex;
+}
+.menu-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-2);
+  background: var(--bg-3);
+  color: var(--tx-2);
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.menu-btn:hover {
+  background: var(--bg-hover);
+  color: var(--tx);
+}
+.menu-btn.open {
+  color: var(--tx);
+  border-color: var(--accent);
+}
+.menu-btn.active {
+  color: var(--accent-2);
+  border-color: var(--accent-dim);
+}
+.menu-btn > svg:last-child {
+  color: var(--tx-3);
+  margin-left: 1px;
+}
+.menu-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 60;
+  min-width: 188px;
+  padding: 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-radius: 11px;
+  box-shadow: var(--shadow);
+}
+.menu-pop.left {
+  left: 0;
+}
+.menu-pop.right {
+  right: 0;
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 9px;
+  border: none;
+  background: transparent;
+  color: var(--tx);
+  border-radius: 7px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.menu-item:hover {
+  background: var(--bg-3);
+}
+.menu-item.on {
+  color: var(--accent-2);
+}
+.menu-dir {
+  margin-left: auto;
+  display: inline-flex;
+  color: var(--accent-2);
+}
+.menu-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--tx-3);
+  padding: 6px 9px 4px;
+}
+.menu-sep {
+  height: 1px;
+  background: var(--line);
+  margin: 5px 4px;
+}
+.menu-check input {
+  display: none;
+}
+.menu-box {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  border: 1px solid var(--line-2);
+  background: var(--bg-3);
+  color: #fff;
+  flex: none;
+}
+.menu-box.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.menu-box.radio {
+  border-radius: 50%;
+}
+.menu-box .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
 .seg {
   display: inline-flex;
   border: 1px solid var(--line-2);

@@ -28,6 +28,40 @@ export function setDensity(d: Density): void {
   localStorage.setItem(DENSITY_KEY, d);
 }
 
+export type SortKey = "name" | "date" | "size" | "type";
+export type SortDir = "asc" | "desc";
+export interface SortPref {
+  key: SortKey;
+  dir: SortDir;
+}
+export type TypeFilter = "all" | "photos" | "raw";
+
+const SORT_KEY = "aspect.sort";
+const TYPE_KEY = "aspect.typeFilter";
+
+export function getSort(): SortPref {
+  try {
+    const v = JSON.parse(localStorage.getItem(SORT_KEY) || "null");
+    if (v && typeof v.key === "string" && typeof v.dir === "string") return v;
+  } catch {
+    /* ignore */
+  }
+  return { key: "name", dir: "asc" };
+}
+
+export function setSort(s: SortPref): void {
+  localStorage.setItem(SORT_KEY, JSON.stringify(s));
+}
+
+export function getTypeFilter(): TypeFilter {
+  const v = localStorage.getItem(TYPE_KEY);
+  return v === "photos" || v === "raw" ? v : "all";
+}
+
+export function setTypeFilter(t: TypeFilter): void {
+  localStorage.setItem(TYPE_KEY, t);
+}
+
 // ---- recently opened folders ----
 
 export function getRecents(): Recent[] {

@@ -137,6 +137,26 @@ export const Reveal = (p: IconProps) => (
   </Svg>
 );
 
+export const ChevronDown = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m6 9.5 6 6 6-6" />
+  </Svg>
+);
+
+export const Funnel = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 5h18l-7 8v5l-4 2v-7z" />
+  </Svg>
+);
+
+export const Sort = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M7 4v15" />
+    <path d="m4 16 3 3 3-3" />
+    <path d="M12 6h8M12 11h5M12 16h2" />
+  </Svg>
+);
+
 export const FileIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M7 3h7l4 4v12.5A1.5 1.5 0 0 1 16.5 21h-9A1.5 1.5 0 0 1 6 19.5v-15A1.5 1.5 0 0 1 7.5 3z" />
