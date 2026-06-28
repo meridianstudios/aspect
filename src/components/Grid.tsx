@@ -26,11 +26,10 @@ import {
   ChevronDown,
   Picture,
   FileIcon,
-  Check,
-  Funnel,
   Sort as SortIcon,
 } from "../lib/icons";
 import Dropdown from "./Dropdown";
+import FilterMenu from "./FilterMenu";
 
 const THUMB = 360;
 
@@ -131,7 +130,6 @@ export default function Grid({
   );
   const visibleImages = useMemo(() => visible.filter((f) => f.image), [visible]);
 
-  const filterActive = !imagesOnly || typeFilter !== "all" || flaggedOnly;
   const flaggedCount = useMemo(
     () => allImages.reduce((n, im) => n + (flags.has(im.path) ? 1 : 0), 0),
     [allImages, flags],
@@ -241,51 +239,14 @@ export default function Grid({
         <span className="count-pill">{countText}</span>
         <div className="spacer" />
 
-        <Dropdown label="Filter" icon={<Funnel size={15} />} active={filterActive}>
-          <label className="menu-item menu-check">
-            <input
-              type="checkbox"
-              checked={imagesOnly}
-              onChange={toggleImagesOnly}
-            />
-            <span className={"menu-box" + (imagesOnly ? " on" : "")}>
-              {imagesOnly && <Check size={12} />}
-            </span>
-            Images only
-          </label>
-          <div className="menu-sep" />
-          <div className="menu-label">Type</div>
-          {(
-            [
-              ["all", "All images"],
-              ["photos", "Photos only"],
-              ["raw", "RAW only"],
-            ] as [TypeFilter, string][]
-          ).map(([k, lbl]) => (
-            <button
-              key={k}
-              className={"menu-item" + (typeFilter === k ? " on" : "")}
-              onClick={() => chooseType(k)}
-            >
-              <span className="menu-box radio">
-                {typeFilter === k && <span className="dot" />}
-              </span>
-              {lbl}
-            </button>
-          ))}
-          <div className="menu-sep" />
-          <label className="menu-item menu-check">
-            <input
-              type="checkbox"
-              checked={flaggedOnly}
-              onChange={() => setFlaggedOnly((v) => !v)}
-            />
-            <span className={"menu-box" + (flaggedOnly ? " on" : "")}>
-              {flaggedOnly && <Check size={12} />}
-            </span>
-            Flagged only
-          </label>
-        </Dropdown>
+        <FilterMenu
+          imagesOnly={imagesOnly}
+          onImagesOnly={toggleImagesOnly}
+          typeFilter={typeFilter}
+          onType={chooseType}
+          flaggedOnly={flaggedOnly}
+          onFlaggedOnly={() => setFlaggedOnly((v) => !v)}
+        />
 
         <Dropdown
           label={`Sort: ${SORT_LABEL[sort.key]}`}

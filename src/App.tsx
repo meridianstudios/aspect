@@ -57,7 +57,11 @@ export default function App() {
         <Home onBrowse={() => setView({ kind: "browse" })} onOpen={openFolder} />
       )}
       {view.kind === "browse" && (
-        <Browser onHome={() => setView({ kind: "home" })} onOpen={openFolder} />
+        <Browser
+          onHome={() => setView({ kind: "home" })}
+          onOpen={openFolder}
+          onOpenViewer={(images, index) => setViewer({ images, index })}
+        />
       )}
       {view.kind === "grid" && (
         <Grid

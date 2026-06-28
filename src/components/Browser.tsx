@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { listDir, listVolumes } from "../lib/api";
-import type { DirListing, Volume } from "../types";
+import { listDir, listFiles, listVolumes } from "../lib/api";
+import type { DirListing, ImageEntry, Volume } from "../types";
+import {
+  getImagesOnly,
+  setImagesOnly,
+  getTypeFilter,
+  setTypeFilter,
+  type TypeFilter,
+} from "../lib/store";
 import {
   Logo,
   Home as HomeIcon,
@@ -12,26 +19,31 @@ import {
   ArrowUp,
   ChevronRight,
   Picture,
+  FileIcon,
 } from "../lib/icons";
 import { baseName, crumbs, fmtSize } from "../lib/util";
+import FilterMenu from "./FilterMenu";
 
 export default function Browser({
   onHome,
   onOpen,
+  onOpenViewer,
 }: {
   onHome: () => void;
   onOpen: (path: string, name: string) => void;
+  onOpenViewer: (images: ImageEntry[], index: number) => void;
 }) {
   const [volumes, setVolumes] = useState<Volume[]>([]);
   const [path, setPath] = useState<string | null>(null);
   const [listing, setListing] = useState<DirListing | null>(null);
+  const [files, setFiles] = useState<ImageEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [imagesOnly, setImagesOnlyState] = useState(getImagesOnly());
+  const [typeFilter, setTypeFilterState] = useState<TypeFilter>(getTypeFilter());
 
   useEffect(() => {
-    listVolumes()
-      .then(setVolumes)
-      .catch(() => {});
+    listVolumes().then(setVolumes).catch(() => {});
   }, []);
 
   const navigate = useCallback(async (p: string) => {
@@ -39,10 +51,13 @@ export default function Browser({
     setError(null);
     setPath(p);
     try {
-      setListing(await listDir(p));
+      const [l, fs] = await Promise.all([listDir(p), listFiles(p)]);
+      setListing(l);
+      setFiles(fs);
     } catch (e) {
       setError(String(e));
       setListing(null);
+      setFiles([]);
     } finally {
       setLoading(false);
     }
@@ -51,6 +66,34 @@ export default function Browser({
   const pickNative = async () => {
     const sel = await openDialog({ directory: true, title: "Choose a folder" });
     if (typeof sel === "string") navigate(sel);
+  };
+
+  const toggleImagesOnly = () => {
+    const v = !imagesOnly;
+    setImagesOnlyState(v);
+    setImagesOnly(v);
+  };
+  const chooseType = (t: TypeFilter) => {
+    setTypeFilterState(t);
+    setTypeFilter(t);
+  };
+
+  const visibleFiles = useMemo(() => {
+    let list = files;
+    if (typeFilter === "raw") list = list.filter((f) => f.raw);
+    else if (typeFilter === "photos") list = list.filter((f) => f.image && !f.raw);
+    else if (imagesOnly) list = list.filter((f) => f.image);
+    return list;
+  }, [files, imagesOnly, typeFilter]);
+
+  const imageFiles = useMemo(
+    () => visibleFiles.filter((f) => f.image),
+    [visibleFiles],
+  );
+
+  const openImage = (f: ImageEntry) => {
+    const i = imageFiles.findIndex((im) => im.path === f.path);
+    if (i >= 0) onOpenViewer(imageFiles, i);
   };
 
   const quick = volumes.filter((v) => v.kind === "quick");
@@ -69,6 +112,14 @@ export default function Browser({
           <HomeIcon size={16} /> Home
         </button>
         <div className="spacer" />
+        {path !== null && (
+          <FilterMenu
+            imagesOnly={imagesOnly}
+            onImagesOnly={toggleImagesOnly}
+            typeFilter={typeFilter}
+            onType={chooseType}
+          />
+        )}
         <button className="btn ghost" onClick={pickNative}>
           System dialog
         </button>
@@ -162,12 +213,14 @@ export default function Browser({
                   <span className="ob-text">
                     <b>
                       Open {listing.image_count} photo
-                      {listing.image_count === 1 ? "" : "s"}
+                      {listing.image_count === 1 ? "" : "s"} in the gallery
                     </b>
-                    <span className="muted">in {baseName(path)}</span>
+                    <span className="muted">
+                      grid view with sort, fullscreen and export
+                    </span>
                   </span>
                   <span className="ob-go">
-                    View <ChevronRight size={16} />
+                    Open <ChevronRight size={16} />
                   </span>
                 </button>
               )}
@@ -178,18 +231,7 @@ export default function Browser({
                 <div className="error">Could not open this folder. {error}</div>
               ) : (
                 listing && (
-                  <div className="folder-list">
-                    {listing.folders.length === 0 &&
-                      listing.image_count === 0 && (
-                        <div className="muted pad">This folder is empty.</div>
-                      )}
-                    {listing.folders.length === 0 &&
-                      listing.image_count > 0 && (
-                        <div className="muted pad">
-                          No subfolders. Use the button above to view the photos
-                          here.
-                        </div>
-                      )}
+                  <div className="explore-list">
                     {listing.folders.map((f) => (
                       <button
                         key={f.path}
@@ -203,6 +245,37 @@ export default function Browser({
                         </span>
                       </button>
                     ))}
+
+                    {visibleFiles.map((f) =>
+                      f.image ? (
+                        <button
+                          key={f.path}
+                          className="file-row image"
+                          onClick={() => openImage(f)}
+                          title="Open"
+                        >
+                          <Picture size={18} />
+                          <span className="file-row-name">{f.name}</span>
+                          {f.raw && <span className="raw-tag">RAW</span>}
+                          <span className="file-row-size">{fmtSize(f.size)}</span>
+                        </button>
+                      ) : (
+                        <div key={f.path} className="file-row">
+                          <FileIcon size={18} />
+                          <span className="file-row-name">{f.name}</span>
+                          <span className="file-row-size">{fmtSize(f.size)}</span>
+                        </div>
+                      ),
+                    )}
+
+                    {listing.folders.length === 0 &&
+                      visibleFiles.length === 0 && (
+                        <div className="muted pad">
+                          {files.length > 0
+                            ? "No images here. Turn off the filter to see other files."
+                            : "This folder is empty."}
+                        </div>
+                      )}
                   </div>
                 )
               )}

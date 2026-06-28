@@ -10,6 +10,7 @@
 
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
+use std::sync::{Condvar, Mutex, OnceLock};
 
 use serde::Serialize;
 use tauri::http::{Request, Response};
@@ -293,7 +294,7 @@ fn export_flagged_blocking(paths: Vec<String>, dest: String) -> Result<ExportRes
         let fname = match sp.file_name() {
             Some(f) => f.to_os_string(),
             None => {
-                failed.push(src.clone());
+                failed.push(format!("{src}: no file name"));
                 continue;
             }
         };
@@ -303,7 +304,7 @@ fn export_flagged_blocking(paths: Vec<String>, dest: String) -> Result<ExportRes
         }
         match std::fs::copy(&sp, &target) {
             Ok(_) => copied += 1,
-            Err(_) => failed.push(src.clone()),
+            Err(e) => failed.push(format!("{src}: {e}")),
         }
     }
 
@@ -312,6 +313,19 @@ fn export_flagged_blocking(paths: Vec<String>, dest: String) -> Result<ExportRes
         failed,
         dest,
     })
+}
+
+// Open a folder in the OS file manager. Done in Rust (rather than the opener
+// plugin) so it works without a path-scope grant.
+#[tauri::command]
+fn open_folder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    let spawned = std::process::Command::new("explorer").arg(&path).spawn();
+    #[cfg(target_os = "macos")]
+    let spawned = std::process::Command::new("open").arg(&path).spawn();
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let spawned = std::process::Command::new("xdg-open").arg(&path).spawn();
+    spawned.map(|_| ()).map_err(|e| e.to_string())
 }
 
 // ---------------------------------------------------------------------------
@@ -394,6 +408,76 @@ fn make_thumb(data: &[u8], max: u32) -> Option<Vec<u8>> {
     Some(buf.into_inner())
 }
 
+// Limit how many images decode at once so browsing a big folder doesn't peg
+// every core (and spin the fans). Permits ~= half the cores.
+struct Gate {
+    count: Mutex<usize>,
+    cv: Condvar,
+}
+impl Gate {
+    fn acquire(&self) {
+        let mut n = self.count.lock().unwrap();
+        while *n == 0 {
+            n = self.cv.wait(n).unwrap();
+        }
+        *n -= 1;
+    }
+    fn release(&self) {
+        *self.count.lock().unwrap() += 1;
+        self.cv.notify_one();
+    }
+}
+static DECODE_GATE: OnceLock<Gate> = OnceLock::new();
+fn decode_gate() -> &'static Gate {
+    DECODE_GATE.get_or_init(|| {
+        let permits = std::thread::available_parallelism()
+            .map(|n| (n.get() / 2).max(2))
+            .unwrap_or(4);
+        Gate {
+            count: Mutex::new(permits),
+            cv: Condvar::new(),
+        }
+    })
+}
+struct Permit;
+impl Permit {
+    fn acquire() -> Self {
+        decode_gate().acquire();
+        Permit
+    }
+}
+impl Drop for Permit {
+    fn drop(&mut self) {
+        decode_gate().release();
+    }
+}
+
+// On-disk thumbnail cache: decode a thumbnail once, reuse it forever (keyed by
+// path + mtime + size + thumb size). This is the main speed/heat win on repeat
+// browsing and across launches.
+fn thumb_cache_dir() -> Option<PathBuf> {
+    dirs::cache_dir().map(|d| d.join("com.meridianstudios.aspect").join("thumbs"))
+}
+fn cache_key(path: &str, mtime: u64, size: u64, thumb: u32) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    path.hash(&mut h);
+    mtime.hash(&mut h);
+    size.hash(&mut h);
+    thumb.hash(&mut h);
+    format!("{:016x}.jpg", h.finish())
+}
+
+fn ok(bytes: Vec<u8>, ctype: &str) -> Response<Vec<u8>> {
+    Response::builder()
+        .status(200)
+        .header("Content-Type", ctype)
+        .header("Access-Control-Allow-Origin", "*")
+        .header("Cache-Control", "max-age=86400")
+        .body(bytes)
+        .unwrap()
+}
+
 fn not_found() -> Response<Vec<u8>> {
     Response::builder()
         .status(404)
@@ -427,26 +511,49 @@ fn handle_image(req: &Request<Vec<u8>>) -> Response<Vec<u8>> {
     }
     let pbuf = PathBuf::from(&path);
 
-    let (data, ctype) = match load_image_bytes(&pbuf) {
-        Some(d) => d,
-        None => return not_found(),
-    };
+    // Thumbnail: serve from the disk cache when we can (no file read, no decode).
+    if let Some(t) = thumb {
+        let meta = std::fs::metadata(&pbuf).ok();
+        let mtime = meta
+            .as_ref()
+            .and_then(|m| m.modified().ok())
+            .and_then(|x| x.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+        let cfile = thumb_cache_dir().map(|d| d.join(cache_key(&path, mtime, size, t)));
 
-    let (bytes, ctype) = match thumb {
-        Some(t) => match make_thumb(&data, t) {
-            Some(j) => (j, "image/jpeg"),
-            None => (data, ctype), // fall back to full bytes if decode fails
-        },
-        None => (data, ctype),
-    };
+        if let Some(cf) = &cfile {
+            if let Ok(cached) = std::fs::read(cf) {
+                return ok(cached, "image/jpeg");
+            }
+        }
 
-    Response::builder()
-        .status(200)
-        .header("Content-Type", ctype)
-        .header("Access-Control-Allow-Origin", "*")
-        .header("Cache-Control", "max-age=86400")
-        .body(bytes)
-        .unwrap()
+        // Miss: read + decode (gated to keep CPU/fans in check), then cache it.
+        let (data, ctype) = match load_image_bytes(&pbuf) {
+            Some(d) => d,
+            None => return not_found(),
+        };
+        let _permit = Permit::acquire();
+        return match make_thumb(&data, t) {
+            Some(jpeg) => {
+                if let Some(cf) = &cfile {
+                    if let Some(dir) = cf.parent() {
+                        let _ = std::fs::create_dir_all(dir);
+                    }
+                    let _ = std::fs::write(cf, &jpeg);
+                }
+                ok(jpeg, "image/jpeg")
+            }
+            None => ok(data, ctype),
+        };
+    }
+
+    // Full-size: return the bytes as-is (extracted JPEG for RAW).
+    match load_image_bytes(&pbuf) {
+        Some((data, ctype)) => ok(data, ctype),
+        None => not_found(),
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -465,7 +572,8 @@ pub fn run() {
             list_volumes,
             list_dir,
             list_files,
-            export_flagged
+            export_flagged,
+            open_folder
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

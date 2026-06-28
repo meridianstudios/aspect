@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { openPath } from "@tauri-apps/plugin-opener";
-import { exportFlagged } from "../lib/api";
+import { exportFlagged, openFolder } from "../lib/api";
 import type { ExportResult, ImageEntry } from "../types";
 import { Export, Close, Check } from "../lib/icons";
 
@@ -82,13 +81,16 @@ export default function ExportModal({
               .
             </p>
             <p className="muted path-line">{result.dest}</p>
+            {result.failed.length > 0 && (
+              <div className="error">{result.failed[0]}</div>
+            )}
             <div className="modal-actions">
               <button className="btn ghost" onClick={onClose}>
                 Done
               </button>
               <button
                 className="btn primary"
-                onClick={() => openPath(result.dest)}
+                onClick={() => openFolder(result.dest)}
               >
                 Open folder
               </button>

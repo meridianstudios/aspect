@@ -515,26 +515,33 @@ body {
   font-weight: 550;
 }
 
-.folder-list {
+.explore-list {
   flex: 1;
   overflow-y: auto;
   padding: 8px 12px 18px;
 }
-.folder-row {
+.folder-row,
+.file-row {
   display: flex;
   align-items: center;
   gap: 11px;
   width: 100%;
-  padding: 11px 12px;
+  padding: 10px 12px;
   border: none;
   background: transparent;
   color: var(--tx);
   border-radius: var(--radius-sm);
-  cursor: pointer;
   font: inherit;
   text-align: left;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 42px;
 }
-.folder-row:hover {
+.folder-row,
+.file-row.image {
+  cursor: pointer;
+}
+.folder-row:hover,
+.file-row.image:hover {
   background: var(--bg-3);
 }
 .folder-row svg:first-child {
@@ -550,6 +557,39 @@ body {
 .folder-row-go {
   color: var(--tx-3);
   display: inline-flex;
+}
+.file-row svg:first-child {
+  color: var(--tx-2);
+  flex: none;
+}
+.file-row.image svg:first-child {
+  color: var(--accent-2);
+}
+.file-row-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--tx);
+}
+.file-row:not(.image) .file-row-name {
+  color: var(--tx-2);
+}
+.file-row-size {
+  color: var(--tx-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.raw-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--accent-2);
+  border: 1px solid var(--accent-dim);
+  border-radius: 4px;
+  padding: 1px 5px;
+  flex: none;
 }
 .pad {
   padding: 16px 12px;

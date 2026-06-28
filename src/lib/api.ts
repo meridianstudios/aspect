@@ -36,3 +36,7 @@ export async function exportFlagged(
 ): Promise<ExportResult> {
   return invoke<ExportResult>("export_flagged", { paths, dest });
 }
+
+export async function openFolder(path: string): Promise<void> {
+  return invoke("open_folder", { path });
+}
