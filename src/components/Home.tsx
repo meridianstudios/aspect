@@ -34,12 +34,16 @@ export default function Home({
 
       <div className="home-body">
         <div className="hero">
-          <h1>Open a folder to start culling.</h1>
-          <p className="muted">
+          <div className="hero-glow" />
+          <div className="hero-mark">
+            <Logo size={132} />
+          </div>
+          <h1>Cull your shoot, fast.</h1>
+          <p className="hero-sub">
             Browse to a drive or memory card, flag your keepers, then export
-            them in one pass.
+            them in one pass. Your originals never move.
           </p>
-          <button className="btn primary lg" onClick={onBrowse}>
+          <button className="btn primary lg glow" onClick={onBrowse}>
             <FolderOpen size={18} /> Find folder and explore
           </button>
         </div>
@@ -71,7 +75,7 @@ export default function Home({
                     <Close size={14} />
                   </span>
                   <span className="recent-ico">
-                    <FolderOpen size={26} />
+                    <FolderOpen size={24} />
                   </span>
                   <span className="recent-name">{r.name}</span>
                   <span className="recent-path">{r.path}</span>
@@ -84,6 +88,8 @@ export default function Home({
             </div>
           )}
         </section>
+
+        <footer className="home-footer">A Meridian project · v0.1.0</footer>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { imageUrl } from "../lib/api";
 import type { ImageEntry } from "../types";
 import { Flag, FlagFill, ChevronLeft, ChevronRight, Close } from "../lib/icons";
@@ -19,6 +19,7 @@ export default function Viewer({
   const [idx, setIdx] = useState(start);
   const [loaded, setLoaded] = useState(false);
   const [chrome, setChrome] = useState(true);
+  const stripRef = useRef<HTMLDivElement>(null);
 
   const cur = images[idx];
   const go = useCallback(
@@ -41,6 +42,12 @@ export default function Viewer({
       }
     });
   }, [idx, images]);
+
+  // keep the active filmstrip thumb centred
+  useEffect(() => {
+    const el = stripRef.current?.children[idx] as HTMLElement | undefined;
+    el?.scrollIntoView({ inline: "center", block: "nearest" });
+  }, [idx]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -70,7 +77,7 @@ export default function Viewer({
     const show = () => {
       setChrome(true);
       window.clearTimeout(t);
-      t = window.setTimeout(() => setChrome(false), 2200);
+      t = window.setTimeout(() => setChrome(false), 2400);
     };
     show();
     window.addEventListener("mousemove", show);
@@ -84,10 +91,7 @@ export default function Viewer({
   const on = flags.has(cur.path);
 
   return (
-    <div
-      className={"viewer" + (chrome ? " show-chrome" : "")}
-      onClick={onClose}
-    >
+    <div className={"viewer" + (chrome ? " show-chrome" : "")} onClick={onClose}>
       <div className="viewer-stage" onClick={(e) => e.stopPropagation()}>
         {!loaded && <div className="viewer-spin" />}
         <img
@@ -101,7 +105,10 @@ export default function Viewer({
       </div>
 
       <div className="viewer-top" onClick={(e) => e.stopPropagation()}>
-        <span className="vt-name">{cur.name}</span>
+        <span className="vt-name">
+          {cur.name}
+          {cur.raw && <span className="vt-raw">RAW</span>}
+        </span>
         <span className="vt-idx">
           {idx + 1} / {images.length}
         </span>
@@ -140,11 +147,29 @@ export default function Viewer({
         <ChevronRight size={30} />
       </button>
 
-      {on && (
-        <div className="viewer-flagdot">
-          <FlagFill size={14} /> Flagged
+      <div className="filmstrip" onClick={(e) => e.stopPropagation()}>
+        <div className="fs-track" ref={stripRef}>
+          {images.map((im, i) => (
+            <button
+              key={im.path}
+              className={
+                "fs-thumb" +
+                (i === idx ? " on" : "") +
+                (flags.has(im.path) ? " flagged" : "")
+              }
+              title={im.name}
+              onClick={() => setIdx(i)}
+            >
+              <img src={imageUrl(im.path, 120)} loading="lazy" draggable={false} />
+              {flags.has(im.path) && (
+                <span className="fs-flag">
+                  <FlagFill size={10} />
+                </span>
+              )}
+            </button>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }

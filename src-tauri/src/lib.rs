@@ -87,11 +87,12 @@ struct DirListing {
 }
 
 #[derive(Serialize)]
-struct ImageEntry {
+struct FileEntry {
     name: String,
     path: String,
     size: u64,
     modified: u64, // ms since the unix epoch
+    image: bool,
     raw: bool,
 }
 
@@ -198,16 +199,22 @@ fn list_dir(path: String) -> Result<DirListing, String> {
     })
 }
 
+// List every regular file in a folder, tagging which are images. The frontend
+// decides whether to show non-image files based on the "Images only" filter.
 #[tauri::command]
-fn list_images(path: String) -> Result<Vec<ImageEntry>, String> {
+fn list_files(path: String) -> Result<Vec<FileEntry>, String> {
     let p = PathBuf::from(&path);
     let rd = std::fs::read_dir(&p).map_err(|e| e.to_string())?;
 
-    let mut imgs: Vec<ImageEntry> = Vec::new();
+    let mut files: Vec<FileEntry> = Vec::new();
     for entry in rd.flatten() {
         let ep = entry.path();
-        if !ep.is_file() || !is_image(&ep) {
+        if !ep.is_file() {
             continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue; // hidden / system junk
         }
         let meta = entry.metadata().ok();
         let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
@@ -217,17 +224,18 @@ fn list_images(path: String) -> Result<Vec<ImageEntry>, String> {
             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
             .map(|d| d.as_millis() as u64)
             .unwrap_or(0);
-        imgs.push(ImageEntry {
-            name: entry.file_name().to_string_lossy().to_string(),
+        files.push(FileEntry {
+            name,
             path: ep.to_string_lossy().to_string(),
             size,
             modified,
+            image: is_image(&ep),
             raw: is_raw(&ep),
         });
     }
 
-    imgs.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-    Ok(imgs)
+    files.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    Ok(files)
 }
 
 // Build a non-colliding target path inside `dest` for the file `src`.
@@ -436,7 +444,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             list_volumes,
             list_dir,
-            list_images,
+            list_files,
             export_flagged
         ])
         .run(tauri::generate_context!())

@@ -137,6 +137,13 @@ export const Reveal = (p: IconProps) => (
   </Svg>
 );
 
+export const FileIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M7 3h7l4 4v12.5A1.5 1.5 0 0 1 16.5 21h-9A1.5 1.5 0 0 1 6 19.5v-15A1.5 1.5 0 0 1 7.5 3z" />
+    <path d="M14 3v4h4" />
+  </Svg>
+);
+
 export const Grid = (p: IconProps) => (
   <Svg {...p}>
     <rect x="4" y="4" width="7" height="7" rx="1.2" />

@@ -2,7 +2,31 @@ import type { Recent } from "../types";
 
 const RECENTS_KEY = "aspect.recents";
 const FLAGS_KEY = "aspect.flags";
+const IMAGES_ONLY_KEY = "aspect.imagesOnly";
+const DENSITY_KEY = "aspect.density";
 const MAX_RECENTS = 24;
+
+export type Density = "s" | "m" | "l";
+
+// ---- view preferences ----
+
+export function getImagesOnly(): boolean {
+  const v = localStorage.getItem(IMAGES_ONLY_KEY);
+  return v === null ? true : v === "1"; // default on
+}
+
+export function setImagesOnly(on: boolean): void {
+  localStorage.setItem(IMAGES_ONLY_KEY, on ? "1" : "0");
+}
+
+export function getDensity(): Density {
+  const v = localStorage.getItem(DENSITY_KEY);
+  return v === "s" || v === "l" ? v : "m";
+}
+
+export function setDensity(d: Density): void {
+  localStorage.setItem(DENSITY_KEY, d);
+}
 
 // ---- recently opened folders ----
 

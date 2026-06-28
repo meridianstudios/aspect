@@ -25,6 +25,7 @@ export interface ImageEntry {
   path: string;
   size: number;
   modified: number;
+  image: boolean;
   raw: boolean;
 }
 

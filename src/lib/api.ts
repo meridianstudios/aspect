@@ -26,8 +26,8 @@ export async function listDir(path: string): Promise<DirListing> {
   return invoke<DirListing>("list_dir", { path });
 }
 
-export async function listImages(path: string): Promise<ImageEntry[]> {
-  return invoke<ImageEntry[]>("list_images", { path });
+export async function listFiles(path: string): Promise<ImageEntry[]> {
+  return invoke<ImageEntry[]>("list_files", { path });
 }
 
 export async function exportFlagged(
