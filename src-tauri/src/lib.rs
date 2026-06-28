@@ -161,10 +161,21 @@ fn list_volumes() -> Vec<Volume> {
     out
 }
 
+// Blocking fs work runs on a worker thread (spawn_blocking) so a big or slow
+// folder never freezes the UI thread.
 #[tauri::command]
-fn list_dir(path: String) -> Result<DirListing, String> {
+async fn list_dir(path: String) -> Result<DirListing, String> {
+    tauri::async_runtime::spawn_blocking(move || list_dir_blocking(path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn list_dir_blocking(path: String) -> Result<DirListing, String> {
     let p = PathBuf::from(&path);
-    let rd = std::fs::read_dir(&p).map_err(|e| e.to_string())?;
+    let rd = std::fs::read_dir(&p).map_err(|e| {
+        log::warn!("[aspect] list_dir failed for {path}: {e}");
+        e.to_string()
+    })?;
 
     let mut folders: Vec<FolderEntry> = Vec::new();
     let mut image_count = 0usize;
@@ -191,6 +202,11 @@ fn list_dir(path: String) -> Result<DirListing, String> {
     folders.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     let parent = p.parent().map(|x| x.to_string_lossy().to_string());
 
+    log::info!(
+        "[aspect] list_dir {path}: {} folders, {image_count} images",
+        folders.len()
+    );
+
     Ok(DirListing {
         path,
         parent,
@@ -202,9 +218,18 @@ fn list_dir(path: String) -> Result<DirListing, String> {
 // List every regular file in a folder, tagging which are images. The frontend
 // decides whether to show non-image files based on the "Images only" filter.
 #[tauri::command]
-fn list_files(path: String) -> Result<Vec<FileEntry>, String> {
+async fn list_files(path: String) -> Result<Vec<FileEntry>, String> {
+    tauri::async_runtime::spawn_blocking(move || list_files_blocking(path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn list_files_blocking(path: String) -> Result<Vec<FileEntry>, String> {
     let p = PathBuf::from(&path);
-    let rd = std::fs::read_dir(&p).map_err(|e| e.to_string())?;
+    let rd = std::fs::read_dir(&p).map_err(|e| {
+        log::warn!("[aspect] list_files failed for {path}: {e}");
+        e.to_string()
+    })?;
 
     let mut files: Vec<FileEntry> = Vec::new();
     for entry in rd.flatten() {
@@ -235,6 +260,11 @@ fn list_files(path: String) -> Result<Vec<FileEntry>, String> {
     }
 
     files.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    let images = files.iter().filter(|f| f.image).count();
+    log::info!(
+        "[aspect] list_files {path}: {} files, {images} images",
+        files.len()
+    );
     Ok(files)
 }
 
@@ -261,7 +291,13 @@ fn unique_target(dest: &Path, src: &Path) -> PathBuf {
 }
 
 #[tauri::command]
-fn export_flagged(paths: Vec<String>, dest: String) -> Result<ExportResult, String> {
+async fn export_flagged(paths: Vec<String>, dest: String) -> Result<ExportResult, String> {
+    tauri::async_runtime::spawn_blocking(move || export_flagged_blocking(paths, dest))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn export_flagged_blocking(paths: Vec<String>, dest: String) -> Result<ExportResult, String> {
     let dest_dir = PathBuf::from(&dest);
     std::fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
 
@@ -403,14 +439,19 @@ fn handle_image(req: &Request<Vec<u8>>) -> Response<Vec<u8>> {
     }
 
     if path.is_empty() {
+        log::warn!("[aspect] img request with no path (query: {query})");
         return not_found();
     }
     let pbuf = PathBuf::from(&path);
 
     let (data, ctype) = match load_image_bytes(&pbuf) {
         Some(d) => d,
-        None => return not_found(),
+        None => {
+            log::warn!("[aspect] img could not load {path}");
+            return not_found();
+        }
     };
+    log::info!("[aspect] img {path} (thumb={thumb:?}, {} bytes read)", data.len());
 
     let (bytes, ctype) = match thumb {
         Some(t) => match make_thumb(&data, t) {

@@ -34,10 +34,6 @@ export default function Home({
 
       <div className="home-body">
         <div className="hero">
-          <div className="hero-glow" />
-          <div className="hero-mark">
-            <Logo size={132} />
-          </div>
           <h1>Cull your shoot, fast.</h1>
           <p className="hero-sub">
             Browse to a drive or memory card, flag your keepers, then export

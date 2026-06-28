@@ -132,6 +132,7 @@ dependencies = [
  "dirs 5.0.1",
  "image",
  "kamadak-exif",
+ "log",
  "serde",
  "serde_json",
  "sysinfo",
