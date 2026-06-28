@@ -25,10 +25,12 @@ import { baseName, crumbs, fmtSize } from "../lib/util";
 import FilterMenu from "./FilterMenu";
 
 export default function Browser({
+  initialPath,
   onHome,
   onOpen,
   onOpenViewer,
 }: {
+  initialPath?: string;
   onHome: () => void;
   onOpen: (path: string, name: string) => void;
   onOpenViewer: (images: ImageEntry[], index: number) => void;
@@ -62,6 +64,10 @@ export default function Browser({
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (initialPath) navigate(initialPath);
+  }, [initialPath, navigate]);
 
   const pickNative = async () => {
     const sel = await openDialog({ directory: true, title: "Choose a folder" });

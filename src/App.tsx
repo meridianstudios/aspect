@@ -9,7 +9,7 @@ import type { ImageEntry } from "./types";
 
 type View =
   | { kind: "home" }
-  | { kind: "browse" }
+  | { kind: "browse"; path?: string }
   | { kind: "grid"; path: string; name: string };
 
 export default function App() {
@@ -54,10 +54,15 @@ export default function App() {
   return (
     <div className="app">
       {view.kind === "home" && (
-        <Home onBrowse={() => setView({ kind: "browse" })} onOpen={openFolder} />
+        <Home
+          onBrowse={() => setView({ kind: "browse" })}
+          onExplore={(path) => setView({ kind: "browse", path })}
+          onOpen={openFolder}
+        />
       )}
       {view.kind === "browse" && (
         <Browser
+          initialPath={view.path}
           onHome={() => setView({ kind: "home" })}
           onOpen={openFolder}
           onOpenViewer={(images, index) => setViewer({ images, index })}

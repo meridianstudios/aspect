@@ -1,24 +1,41 @@
 import { useEffect, useState } from "react";
+import { listVolumes } from "../lib/api";
 import { getRecents, removeRecent } from "../lib/store";
-import type { Recent } from "../types";
-import { Logo, FolderOpen, Picture, Close } from "../lib/icons";
+import type { Recent, Volume } from "../types";
+import { Logo, FolderOpen, Folder, Card, Picture, Close } from "../lib/icons";
 import { fmtDate } from "../lib/util";
+
+const QUICK_ORDER = ["Pictures", "Downloads", "Desktop", "Home"];
 
 export default function Home({
   onBrowse,
+  onExplore,
   onOpen,
 }: {
   onBrowse: () => void;
+  onExplore: (path: string) => void;
   onOpen: (path: string, name: string) => void;
 }) {
   const [recents, setRecents] = useState<Recent[]>([]);
-  useEffect(() => setRecents(getRecents()), []);
+  const [volumes, setVolumes] = useState<Volume[]>([]);
+
+  useEffect(() => {
+    setRecents(getRecents());
+    listVolumes()
+      .then(setVolumes)
+      .catch(() => {});
+  }, []);
 
   const remove = (e: React.MouseEvent, path: string) => {
     e.stopPropagation();
     removeRecent(path);
     setRecents(getRecents());
   };
+
+  const cards = volumes.filter((v) => v.kind === "removable");
+  const quick = volumes
+    .filter((v) => v.kind === "quick")
+    .sort((a, b) => QUICK_ORDER.indexOf(a.name) - QUICK_ORDER.indexOf(b.name));
 
   return (
     <div className="view home">
@@ -34,14 +51,48 @@ export default function Home({
 
       <div className="home-body">
         <div className="hero">
-          <h1>Cull your shoot, fast.</h1>
+          <h1>Find your best shots, fast.</h1>
           <p className="hero-sub">
-            Browse to a drive or memory card, flag your keepers, then export
-            them in one pass. Your originals never move.
+            Browse a drive or memory card, flag your picks, then export them in
+            one pass. Your originals never move.
           </p>
           <button className="btn primary lg glow" onClick={onBrowse}>
             <FolderOpen size={18} /> Find folder and explore
           </button>
+
+          {(cards.length > 0 || quick.length > 0) && (
+            <div className="hero-quick">
+              <span className="hero-quick-label">Jump to</span>
+              <div className="qa-row">
+                {cards.map((v) => (
+                  <button
+                    key={v.path}
+                    className="qa-chip card"
+                    onClick={() => onExplore(v.path)}
+                    title={v.path}
+                  >
+                    <Card size={16} />
+                    {v.name}
+                  </button>
+                ))}
+                {quick.map((v) => (
+                  <button
+                    key={v.path}
+                    className="qa-chip"
+                    onClick={() => onExplore(v.path)}
+                    title={v.path}
+                  >
+                    {v.name === "Pictures" ? (
+                      <Picture size={16} />
+                    ) : (
+                      <Folder size={16} />
+                    )}
+                    {v.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <section className="recents">
@@ -84,6 +135,21 @@ export default function Home({
             </div>
           )}
         </section>
+
+        <div className="key-hints">
+          <span>
+            <span className="kbd">Arrows</span> move
+          </span>
+          <span>
+            <span className="kbd">F</span> flag
+          </span>
+          <span>
+            <span className="kbd">Enter</span> open
+          </span>
+          <span>
+            <span className="kbd">Esc</span> close
+          </span>
+        </div>
 
         <footer className="home-footer">A Meridian project · v0.1.0</footer>
       </div>
