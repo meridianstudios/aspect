@@ -1,5 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Volume, DirListing, ImageEntry, ExportResult } from "../types";
+import type {
+  Volume,
+  DirListing,
+  ImageEntry,
+  ExportResult,
+  ConvertResult,
+  ImageInfo,
+} from "../types";
 
 // True when running inside the Tauri webview (false in a plain browser preview).
 export const isTauri =
@@ -39,4 +46,17 @@ export async function exportFlagged(
 
 export async function openFolder(path: string): Promise<void> {
   return invoke("open_folder", { path });
+}
+
+export async function convertImages(
+  paths: string[],
+  format: string,
+  quality: number,
+  dest: string,
+): Promise<ConvertResult> {
+  return invoke<ConvertResult>("convert_images", { paths, format, quality, dest });
+}
+
+export async function imageInfo(path: string): Promise<ImageInfo> {
+  return invoke<ImageInfo>("image_info", { path });
 }

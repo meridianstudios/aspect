@@ -41,3 +41,27 @@ export interface Recent {
   openedAt: number;
   count: number;
 }
+
+export interface ConvertResult {
+  converted: number;
+  failed: string[];
+  dest: string;
+}
+
+export interface ImageInfo {
+  name: string;
+  path: string;
+  size: number;
+  modified: number;
+  format: string;
+  width: number | null;
+  height: number | null;
+  taken: string | null;
+  camera: string | null;
+  lens: string | null;
+  iso: string | null;
+  aperture: string | null;
+  shutter: string | null;
+  focal: string | null;
+  gps: string | null;
+}

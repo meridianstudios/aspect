@@ -1,7 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { imageUrl } from "../lib/api";
-import type { ImageEntry } from "../types";
-import { Flag, FlagFill, ChevronLeft, ChevronRight, Close } from "../lib/icons";
+import { imageInfo, imageUrl } from "../lib/api";
+import type { ImageEntry, ImageInfo } from "../types";
+import {
+  Flag,
+  FlagFill,
+  ChevronLeft,
+  ChevronRight,
+  Close,
+  Info,
+} from "../lib/icons";
+import { fmtSize } from "../lib/util";
+
+function Row({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null;
+  return (
+    <div className="info-row">
+      <span className="info-k">{label}</span>
+      <span className="info-v">{value}</span>
+    </div>
+  );
+}
 
 export default function Viewer({
   images,
@@ -19,6 +37,9 @@ export default function Viewer({
   const [idx, setIdx] = useState(start);
   const [loaded, setLoaded] = useState(false);
   const [chrome, setChrome] = useState(true);
+  const [showInfo, setShowInfo] = useState(false);
+  const [info, setInfo] = useState<ImageInfo | null>(null);
+  const [infoLoading, setInfoLoading] = useState(false);
   const stripRef = useRef<HTMLDivElement>(null);
 
   const cur = images[idx];
@@ -43,15 +64,24 @@ export default function Viewer({
     });
   }, [idx, images]);
 
-  // Only render a window of filmstrip thumbnails around the current photo, so a
-  // folder with thousands of images doesn't mount thousands of <img> at once
-  // (which floods the image protocol and stalls the full-size load).
+  // fetch metadata when the info panel is open (and on photo change)
+  useEffect(() => {
+    if (!showInfo || !cur) return;
+    let alive = true;
+    setInfoLoading(true);
+    imageInfo(cur.path)
+      .then((d) => alive && (setInfo(d), setInfoLoading(false)))
+      .catch(() => alive && (setInfo(null), setInfoLoading(false)));
+    return () => {
+      alive = false;
+    };
+  }, [showInfo, cur?.path]);
+
   const FS_WINDOW = 30;
   const fsLo = Math.max(0, idx - FS_WINDOW);
   const fsHi = Math.min(images.length, idx + FS_WINDOW + 1);
   const fsSlice = images.slice(fsLo, fsHi);
 
-  // keep the active filmstrip thumb centred
   useEffect(() => {
     const el = stripRef.current?.children[idx - fsLo] as HTMLElement | undefined;
     el?.scrollIntoView({ inline: "center", block: "nearest" });
@@ -66,9 +96,12 @@ export default function Viewer({
         go(-1);
         e.preventDefault();
       } else if (e.key === "Escape") {
-        onClose();
+        if (showInfo) setShowInfo(false);
+        else onClose();
       } else if (e.key === "f" || e.key === "F") {
         if (cur) onToggleFlag(cur.path);
+      } else if (e.key === "i" || e.key === "I") {
+        setShowInfo((s) => !s);
       } else if (e.key === "Home") {
         setIdx(0);
       } else if (e.key === "End") {
@@ -77,7 +110,7 @@ export default function Viewer({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [go, onClose, cur, onToggleFlag, images.length]);
+  }, [go, onClose, cur, onToggleFlag, images.length, showInfo]);
 
   // auto-hide the chrome after a moment of no mouse movement
   useEffect(() => {
@@ -97,9 +130,24 @@ export default function Viewer({
 
   if (!cur) return null;
   const on = flags.has(cur.path);
+  const hasCamera =
+    info &&
+    (info.taken ||
+      info.camera ||
+      info.lens ||
+      info.focal ||
+      info.aperture ||
+      info.shutter ||
+      info.iso ||
+      info.gps);
 
   return (
-    <div className={"viewer" + (chrome ? " show-chrome" : "")} onClick={onClose}>
+    <div
+      className={
+        "viewer" + (chrome ? " show-chrome" : "") + (showInfo ? " with-info" : "")
+      }
+      onClick={onClose}
+    >
       <div className="viewer-stage" onClick={(e) => e.stopPropagation()}>
         {!loaded && <div className="viewer-spin" />}
         <img
@@ -122,6 +170,13 @@ export default function Viewer({
         </span>
         <div className="spacer" />
         <button
+          className={"vt-icon" + (showInfo ? " on" : "")}
+          title="Info (I)"
+          onClick={() => setShowInfo((s) => !s)}
+        >
+          <Info size={18} />
+        </button>
+        <button
           className={"vt-flag" + (on ? " on" : "")}
           title="Flag (F)"
           onClick={() => onToggleFlag(cur.path)}
@@ -129,7 +184,7 @@ export default function Viewer({
           {on ? <FlagFill size={18} /> : <Flag size={18} />}
           <span>{on ? "Flagged" : "Flag"}</span>
         </button>
-        <button className="vt-close" title="Close (Esc)" onClick={onClose}>
+        <button className="vt-icon" title="Close (Esc)" onClick={onClose}>
           <Close size={20} />
         </button>
       </div>
@@ -154,6 +209,58 @@ export default function Viewer({
       >
         <ChevronRight size={30} />
       </button>
+
+      {showInfo && (
+        <div className="viewer-info" onClick={(e) => e.stopPropagation()}>
+          <div className="info-head">
+            <span>Info</span>
+            <button className="iconbtn" onClick={() => setShowInfo(false)}>
+              <Close size={16} />
+            </button>
+          </div>
+          {infoLoading && !info ? (
+            <div className="info-loading">
+              <span className="spin-sm" />
+            </div>
+          ) : info ? (
+            <div className="info-body">
+              <div className="info-sec">File</div>
+              <Row label="Name" value={info.name} />
+              <Row label="Format" value={info.format} />
+              <Row
+                label="Dimensions"
+                value={
+                  info.width && info.height
+                    ? `${info.width} × ${info.height}`
+                    : null
+                }
+              />
+              <Row label="Size" value={fmtSize(info.size)} />
+              <Row
+                label="Modified"
+                value={
+                  info.modified
+                    ? new Date(info.modified).toLocaleString()
+                    : null
+                }
+              />
+              {hasCamera && <div className="info-sec">Camera</div>}
+              <Row label="Taken" value={info.taken} />
+              <Row label="Camera" value={info.camera} />
+              <Row label="Lens" value={info.lens} />
+              <Row label="Focal length" value={info.focal} />
+              <Row label="Aperture" value={info.aperture} />
+              <Row label="Shutter" value={info.shutter} />
+              <Row label="ISO" value={info.iso} />
+              <Row label="GPS" value={info.gps} />
+            </div>
+          ) : (
+            <div className="info-body">
+              <p className="muted">No details available.</p>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="filmstrip" onClick={(e) => e.stopPropagation()}>
         <div className="fs-track" ref={stripRef}>

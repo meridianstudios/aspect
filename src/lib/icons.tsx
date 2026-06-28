@@ -157,6 +157,23 @@ export const Sort = (p: IconProps) => (
   </Svg>
 );
 
+export const Convert = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 9h12" />
+    <path d="m13 6 3 3-3 3" />
+    <path d="M20 15H8" />
+    <path d="m11 12-3 3 3 3" />
+  </Svg>
+);
+
+export const Info = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5" />
+    <path d="M12 8h.01" />
+  </Svg>
+);
+
 export const FileIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M7 3h7l4 4v12.5A1.5 1.5 0 0 1 16.5 21h-9A1.5 1.5 0 0 1 6 19.5v-15A1.5 1.5 0 0 1 7.5 3z" />

@@ -3,6 +3,7 @@ import Home from "./components/Home";
 import Browser from "./components/Browser";
 import Grid from "./components/Grid";
 import Viewer from "./components/Viewer";
+import Convert from "./components/Convert";
 import ExportModal from "./components/ExportModal";
 import { addRecent, getFlags, writeFlags } from "./lib/store";
 import type { ImageEntry } from "./types";
@@ -10,7 +11,8 @@ import type { ImageEntry } from "./types";
 type View =
   | { kind: "home" }
   | { kind: "browse"; path?: string }
-  | { kind: "grid"; path: string; name: string };
+  | { kind: "grid"; path: string; name: string }
+  | { kind: "convert" };
 
 export default function App() {
   const [view, setView] = useState<View>({ kind: "home" });
@@ -58,7 +60,11 @@ export default function App() {
           onBrowse={() => setView({ kind: "browse" })}
           onExplore={(path) => setView({ kind: "browse", path })}
           onOpen={openFolder}
+          onConvert={() => setView({ kind: "convert" })}
         />
+      )}
+      {view.kind === "convert" && (
+        <Convert onHome={() => setView({ kind: "home" })} />
       )}
       {view.kind === "browse" && (
         <Browser

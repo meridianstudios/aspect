@@ -2,7 +2,15 @@ import { useEffect, useState } from "react";
 import { listVolumes } from "../lib/api";
 import { getRecents, removeRecent } from "../lib/store";
 import type { Recent, Volume } from "../types";
-import { Logo, FolderOpen, Folder, Card, Picture, Close } from "../lib/icons";
+import {
+  Logo,
+  FolderOpen,
+  Folder,
+  Card,
+  Picture,
+  Close,
+  Convert,
+} from "../lib/icons";
 import { fmtDate } from "../lib/util";
 
 const QUICK_ORDER = ["Pictures", "Downloads", "Desktop", "Home"];
@@ -11,10 +19,12 @@ export default function Home({
   onBrowse,
   onExplore,
   onOpen,
+  onConvert,
 }: {
   onBrowse: () => void;
   onExplore: (path: string) => void;
   onOpen: (path: string, name: string) => void;
+  onConvert: () => void;
 }) {
   const [recents, setRecents] = useState<Recent[]>([]);
   const [volumes, setVolumes] = useState<Volume[]>([]);
@@ -56,9 +66,14 @@ export default function Home({
             Browse a drive or memory card, flag your picks, then export them in
             one pass. Your originals never move.
           </p>
-          <button className="btn primary lg glow" onClick={onBrowse}>
-            <FolderOpen size={18} /> Find folder and explore
-          </button>
+          <div className="hero-cta">
+            <button className="btn primary lg glow" onClick={onBrowse}>
+              <FolderOpen size={18} /> Find folder and explore
+            </button>
+            <button className="btn lg" onClick={onConvert}>
+              <Convert size={18} /> Convert files
+            </button>
+          </div>
 
           {(cards.length > 0 || quick.length > 0) && (
             <div className="hero-quick">
@@ -151,7 +166,7 @@ export default function Home({
           </span>
         </div>
 
-        <footer className="home-footer">A Meridian project · v1.0.0</footer>
+        <footer className="home-footer">A Meridian project · v1.1.0</footer>
       </div>
     </div>
   );

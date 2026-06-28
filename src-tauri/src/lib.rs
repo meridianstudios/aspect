@@ -104,6 +104,32 @@ struct ExportResult {
     dest: String,
 }
 
+#[derive(Serialize)]
+struct ConvertResult {
+    converted: usize,
+    failed: Vec<String>,
+    dest: String,
+}
+
+#[derive(Serialize)]
+struct ImageInfo {
+    name: String,
+    path: String,
+    size: u64,
+    modified: u64,
+    format: String,
+    width: Option<u32>,
+    height: Option<u32>,
+    taken: Option<String>,
+    camera: Option<String>,
+    lens: Option<String>,
+    iso: Option<String>,
+    aperture: Option<String>,
+    shutter: Option<String>,
+    focal: Option<String>,
+    gps: Option<String>,
+}
+
 // ---------------------------------------------------------------------------
 // commands
 // ---------------------------------------------------------------------------
@@ -312,6 +338,270 @@ fn export_flagged_blocking(paths: Vec<String>, dest: String) -> Result<ExportRes
         copied,
         failed,
         dest,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// format conversion
+// ---------------------------------------------------------------------------
+
+fn oriented(img: image::DynamicImage, orientation: u32) -> image::DynamicImage {
+    match orientation {
+        3 => img.rotate180(),
+        6 => img.rotate90(),
+        8 => img.rotate270(),
+        _ => img,
+    }
+}
+
+// Encode a decoded image to the requested format. Returns (bytes, extension).
+fn encode_to(
+    img: &image::DynamicImage,
+    fmt: &str,
+    quality: u8,
+) -> Result<(Vec<u8>, &'static str), String> {
+    use image::ImageEncoder;
+    let mut buf = Cursor::new(Vec::new());
+    let ext: &'static str = match fmt {
+        "png" => {
+            img.write_to(&mut buf, image::ImageFormat::Png)
+                .map_err(|e| e.to_string())?;
+            "png"
+        }
+        "bmp" => {
+            img.write_to(&mut buf, image::ImageFormat::Bmp)
+                .map_err(|e| e.to_string())?;
+            "bmp"
+        }
+        "tiff" => {
+            img.write_to(&mut buf, image::ImageFormat::Tiff)
+                .map_err(|e| e.to_string())?;
+            "tiff"
+        }
+        "jpeg" => {
+            let rgb = img.to_rgb8();
+            let mut enc = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, quality);
+            enc.encode_image(&rgb).map_err(|e| e.to_string())?;
+            "jpg"
+        }
+        "webp" => {
+            let rgba = img.to_rgba8();
+            let enc = image::codecs::webp::WebPEncoder::new_lossless(&mut buf);
+            enc.write_image(
+                rgba.as_raw(),
+                rgba.width(),
+                rgba.height(),
+                image::ExtendedColorType::Rgba8,
+            )
+            .map_err(|e| e.to_string())?;
+            "webp"
+        }
+        other => return Err(format!("unsupported target format: {other}")),
+    };
+    Ok((buf.into_inner(), ext))
+}
+
+fn convert_one(src: &str, fmt: &str, quality: u8) -> Result<(Vec<u8>, &'static str), String> {
+    let p = PathBuf::from(src);
+    let (data, _) = load_image_bytes(&p).ok_or_else(|| "could not read image".to_string())?;
+    let _permit = Permit::acquire();
+    let img = image::load_from_memory(&data).map_err(|e| e.to_string())?;
+    let img = oriented(img, exif_orientation(&data));
+    encode_to(&img, fmt, quality)
+}
+
+#[tauri::command]
+async fn convert_images(
+    app: tauri::AppHandle,
+    paths: Vec<String>,
+    format: String,
+    quality: u8,
+    dest: String,
+) -> Result<ConvertResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        convert_images_blocking(app, paths, format, quality, dest)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+fn convert_images_blocking(
+    app: tauri::AppHandle,
+    paths: Vec<String>,
+    format: String,
+    quality: u8,
+    dest: String,
+) -> Result<ConvertResult, String> {
+    use tauri::Emitter;
+    let dest_dir = PathBuf::from(&dest);
+    std::fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
+
+    let total = paths.len();
+    let mut converted = 0usize;
+    let mut failed: Vec<String> = Vec::new();
+
+    for (i, src) in paths.iter().enumerate() {
+        let _ = app.emit("convert-progress", serde_json::json!({"done": i, "total": total}));
+        match convert_one(src, &format, quality) {
+            Ok((bytes, ext)) => {
+                let sp = PathBuf::from(src);
+                let stem = sp
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("image")
+                    .to_string();
+                let mut target = dest_dir.join(format!("{stem}.{ext}"));
+                if target.exists() {
+                    target = unique_target(&dest_dir, &target);
+                }
+                match std::fs::write(&target, &bytes) {
+                    Ok(_) => converted += 1,
+                    Err(e) => failed.push(format!("{src}: {e}")),
+                }
+            }
+            Err(e) => failed.push(format!("{src}: {e}")),
+        }
+    }
+    let _ = app.emit("convert-progress", serde_json::json!({"done": total, "total": total}));
+
+    Ok(ConvertResult {
+        converted,
+        failed,
+        dest,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// per-image metadata (EXIF)
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+async fn image_info(path: String) -> Result<ImageInfo, String> {
+    tauri::async_runtime::spawn_blocking(move || image_info_blocking(path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn image_info_blocking(path: String) -> Result<ImageInfo, String> {
+    let p = PathBuf::from(&path);
+    let meta = std::fs::metadata(&p).map_err(|e| e.to_string())?;
+    let size = meta.len();
+    let modified = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let format = ext_lower(&p).to_uppercase();
+
+    // EXIF (best effort; absent for PNG/BMP and unreadable on some RAW variants).
+    let exif = std::fs::File::open(&p)
+        .ok()
+        .and_then(|f| {
+            let mut r = std::io::BufReader::new(f);
+            exif::Reader::new().read_from_container(&mut r).ok()
+        });
+
+    let disp = |tag: exif::Tag| -> Option<String> {
+        let ex = exif.as_ref()?;
+        let f = ex.get_field(tag, exif::In::PRIMARY)?;
+        let s = f.display_value().with_unit(ex).to_string();
+        let s = s.trim().trim_matches('"').trim().to_string();
+        if s.is_empty() { None } else { Some(s) }
+    };
+    let plain = |tag: exif::Tag| -> Option<String> {
+        let ex = exif.as_ref()?;
+        let f = ex.get_field(tag, exif::In::PRIMARY)?;
+        let s = f.display_value().to_string();
+        let s = s.trim().trim_matches('"').trim().to_string();
+        if s.is_empty() { None } else { Some(s) }
+    };
+
+    // dimensions: EXIF pixel dims first, then a header read for standard formats.
+    let exif_dim = |tag: exif::Tag| -> Option<u32> {
+        let ex = exif.as_ref()?;
+        ex.get_field(tag, exif::In::PRIMARY)?.value.get_uint(0)
+    };
+    let mut width = exif_dim(exif::Tag::PixelXDimension);
+    let mut height = exif_dim(exif::Tag::PixelYDimension);
+    if width.is_none() || height.is_none() {
+        if let Ok((w, h)) = image::image_dimensions(&p) {
+            width = Some(w);
+            height = Some(h);
+        }
+    }
+
+    let camera = match (plain(exif::Tag::Make), plain(exif::Tag::Model)) {
+        (Some(mk), Some(md)) => {
+            // Avoid "Canon Canon EOS R6" style duplication.
+            if md.to_lowercase().starts_with(&mk.to_lowercase()) {
+                Some(md)
+            } else {
+                Some(format!("{mk} {md}"))
+            }
+        }
+        (Some(mk), None) => Some(mk),
+        (None, Some(md)) => Some(md),
+        _ => None,
+    };
+
+    let taken = plain(exif::Tag::DateTimeOriginal)
+        .or_else(|| plain(exif::Tag::DateTime))
+        .map(|s| {
+            // "YYYY:MM:DD HH:MM:SS" -> "YYYY-MM-DD HH:MM:SS"
+            let mut c = s.chars().collect::<Vec<_>>();
+            if c.len() >= 10 && c[4] == ':' && c[7] == ':' {
+                c[4] = '-';
+                c[7] = '-';
+            }
+            c.into_iter().collect()
+        });
+
+    let aperture = plain(exif::Tag::FNumber).map(|s| {
+        if s.starts_with("f/") {
+            s
+        } else {
+            format!("f/{s}")
+        }
+    });
+    let focal = plain(exif::Tag::FocalLength).map(|s| {
+        if s.to_lowercase().contains("mm") {
+            s
+        } else {
+            format!("{s} mm")
+        }
+    });
+
+    let gps = match (
+        disp(exif::Tag::GPSLatitude),
+        plain(exif::Tag::GPSLatitudeRef),
+        disp(exif::Tag::GPSLongitude),
+        plain(exif::Tag::GPSLongitudeRef),
+    ) {
+        (Some(la), lar, Some(lo), lor) => Some(format!(
+            "{la} {}, {lo} {}",
+            lar.unwrap_or_default(),
+            lor.unwrap_or_default()
+        )),
+        _ => None,
+    };
+
+    Ok(ImageInfo {
+        name: p.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or(path.clone()),
+        path,
+        size,
+        modified,
+        format,
+        width,
+        height,
+        taken,
+        camera,
+        lens: plain(exif::Tag::LensModel),
+        iso: plain(exif::Tag::PhotographicSensitivity).or_else(|| plain(exif::Tag::ISOSpeed)),
+        aperture,
+        shutter: plain(exif::Tag::ExposureTime),
+        focal,
+        gps,
     })
 }
 
@@ -573,6 +863,8 @@ pub fn run() {
             list_dir,
             list_files,
             export_flagged,
+            convert_images,
+            image_info,
             open_folder
         ])
         .run(tauri::generate_context!())
