@@ -13,6 +13,16 @@ Aspect is built for the part of photography nobody enjoys: sitting down with a f
 - Export every flagged photo into a folder you choose. It copies the files, it never moves or deletes the originals
 - Reads RAW files (CR2, CR3, NEF, ARW, DNG and others) by pulling out the embedded full size JPEG preview, so you can cull RAW quickly without a heavy decode
 
+## Download
+
+Grab the latest installer for your platform from the [Releases page](https://github.com/meridianstudios/aspect/releases):
+
+- Windows: `.exe` or `.msi`
+- macOS: `.dmg` (Apple Silicon or Intel)
+- Linux: `.AppImage` or `.deb`
+
+The builds are not code-signed yet, so the OS will warn about an unknown developer on first launch. On Windows, click "More info" then "Run anyway". On macOS, right-click the app and choose "Open", or run `xattr -dr com.apple.quarantine /Applications/Aspect.app` if it reports the app as damaged.
+
 ## Keyboard
 
 - Arrow keys: move through the grid

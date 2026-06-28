@@ -1,6 +1,6 @@
 [package]
 name = "aspect"
-version = "0.1.0"
+version = "1.0.0"
 description = "Aspect - a fast photo culling app by Meridian"
 authors = ["Meridian Development Studios"]
 edition = "2021"
