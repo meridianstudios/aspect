@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import { imageUrl, listFiles } from "../lib/api";
 import type { ImageEntry } from "../types";
 import {
@@ -77,6 +78,7 @@ export default function Grid({
   onBrowse,
   onOpenViewer,
   onExport,
+  onClearFlags,
   onLoaded,
 }: {
   path: string;
@@ -87,6 +89,7 @@ export default function Grid({
   onBrowse: () => void;
   onOpenViewer: (images: ImageEntry[], index: number) => void;
   onExport: (images: ImageEntry[]) => void;
+  onClearFlags: (paths: string[]) => void;
   onLoaded: (path: string, name: string, count: number) => void;
 }) {
   const [files, setFiles] = useState<ImageEntry[]>([]);
@@ -162,6 +165,15 @@ export default function Grid({
       setSort(next);
       return next;
     });
+  };
+
+  const clearFlags = async () => {
+    if (flaggedCount === 0) return;
+    const ok = await confirm(
+      `Clear all ${flaggedCount} flag${flaggedCount === 1 ? "" : "s"} in this folder?`,
+      { title: "Clear flags", kind: "warning" },
+    );
+    if (ok) onClearFlags(allImages.map((im) => im.path));
   };
 
   const openImage = useCallback(
@@ -288,6 +300,11 @@ export default function Grid({
           ))}
         </div>
 
+        {flaggedCount > 0 && (
+          <button className="btn ghost" onClick={clearFlags} title="Unflag all in this folder">
+            Clear flags
+          </button>
+        )}
         <button
           className="btn primary"
           disabled={flaggedCount === 0}

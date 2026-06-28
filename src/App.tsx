@@ -35,6 +35,15 @@ export default function App() {
     });
   }, []);
 
+  const clearFlags = useCallback((paths: string[]) => {
+    setFlags((prev) => {
+      const next = new Set(prev);
+      for (const p of paths) next.delete(p);
+      writeFlags(next);
+      return next;
+    });
+  }, []);
+
   const openFolder = useCallback((path: string, name: string) => {
     setView({ kind: "grid", path, name });
   }, []);
@@ -84,6 +93,7 @@ export default function App() {
           onBrowse={() => setView({ kind: "browse" })}
           onOpenViewer={(images, index) => setViewer({ images, index })}
           onExport={openExport}
+          onClearFlags={clearFlags}
           onLoaded={recordRecent}
         />
       )}
