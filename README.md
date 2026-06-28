@@ -21,7 +21,16 @@ Grab the latest installer for your platform from the [Releases page](https://git
 - macOS: `.dmg` (Apple Silicon or Intel)
 - Linux: `.AppImage` or `.deb`
 
-The builds are not code-signed yet, so the OS will warn about an unknown developer on first launch. On Windows, click "More info" then "Run anyway". On macOS, right-click the app and choose "Open", or run `xattr -dr com.apple.quarantine /Applications/Aspect.app` if it reports the app as damaged.
+The builds are not code-signed yet, so the OS will warn on first launch. The app is not actually damaged or unsafe, this is just Apple and Microsoft gatekeeping unsigned apps.
+
+- **Windows:** click "More info" then "Run anyway".
+- **macOS:** if you see "Aspect is damaged and can't be opened", drag Aspect into your Applications folder, then open Terminal and run:
+
+  ```
+  xattr -dr com.apple.quarantine /Applications/Aspect.app
+  ```
+
+  Then open Aspect normally. This removes the download-quarantine flag that triggers the warning. (Signing and notarization, which remove the prompt entirely, need a paid Apple Developer account.)
 
 ## Keyboard
 
