@@ -667,6 +667,31 @@ body {
   padding: 16px 12px;
 }
 
+/* ---------- status bar (explorer) ---------- */
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-2);
+}
+.sb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--flag);
+}
+.btn.sm {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
 /* ---------- grid ---------- */
 .grid-title {
   display: flex;

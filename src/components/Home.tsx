@@ -166,7 +166,7 @@ export default function Home({
           </span>
         </div>
 
-        <footer className="home-footer">A Meridian project · v1.1.2</footer>
+        <footer className="home-footer">A Meridian project · v1.1.3</footer>
       </div>
     </div>
   );

@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { exportFlagged, openFolder } from "../lib/api";
-import type { ExportResult, ImageEntry } from "../types";
+import type { ExportResult } from "../types";
 import { Export, Close, Check } from "../lib/icons";
 
 export default function ExportModal({
-  flaggedImages,
+  paths,
   onClose,
 }: {
-  flaggedImages: ImageEntry[];
+  paths: string[];
   onClose: () => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -24,7 +24,7 @@ export default function ExportModal({
     if (typeof dest !== "string") return;
     setBusy(true);
     try {
-      setResult(await exportFlagged(flaggedImages.map((i) => i.path), dest));
+      setResult(await exportFlagged(paths, dest));
     } catch (e) {
       setErr(String(e));
     } finally {
@@ -47,8 +47,8 @@ export default function ExportModal({
         {!result ? (
           <div className="modal-body">
             <p>
-              <span className="big-num">{flaggedImages.length}</span> flagged
-              photo{flaggedImages.length === 1 ? "" : "s"} ready to copy.
+              <span className="big-num">{paths.length}</span> flagged photo
+              {paths.length === 1 ? "" : "s"} ready to copy.
             </p>
             <p className="muted">
               The originals stay where they are. Aspect copies the flagged files
@@ -61,7 +61,7 @@ export default function ExportModal({
               </button>
               <button
                 className="btn primary"
-                disabled={busy || flaggedImages.length === 0}
+                disabled={busy || paths.length === 0}
                 onClick={run}
               >
                 {busy ? "Copying…" : "Choose destination and export"}

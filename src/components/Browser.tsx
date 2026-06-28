@@ -20,20 +20,26 @@ import {
   ChevronRight,
   Picture,
   FileIcon,
+  FlagFill,
+  Export,
 } from "../lib/icons";
 import { baseName, crumbs, fmtSize } from "../lib/util";
 import FilterMenu from "./FilterMenu";
 
 export default function Browser({
   initialPath,
+  flagCount,
   onHome,
   onOpen,
   onOpenViewer,
+  onExportAll,
 }: {
   initialPath?: string;
+  flagCount: number;
   onHome: () => void;
   onOpen: (path: string, name: string) => void;
   onOpenViewer: (images: ImageEntry[], index: number) => void;
+  onExportAll: () => void;
 }) {
   const [volumes, setVolumes] = useState<Volume[]>([]);
   const [path, setPath] = useState<string | null>(null);
@@ -288,6 +294,20 @@ export default function Browser({
             </>
           )}
         </main>
+      </div>
+
+      <div className="statusbar">
+        <span className="sb-item">
+          <FlagFill size={14} /> {flagCount} flagged
+        </span>
+        <div className="spacer" />
+        <button
+          className="btn primary sm"
+          disabled={flagCount === 0}
+          onClick={onExportAll}
+        >
+          <Export size={15} /> Export flagged
+        </button>
       </div>
     </div>
   );

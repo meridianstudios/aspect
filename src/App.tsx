@@ -23,7 +23,7 @@ export default function App() {
     images: ImageEntry[];
     index: number;
   } | null>(null);
-  const [exportImages, setExportImages] = useState<ImageEntry[] | null>(null);
+  const [exportPaths, setExportPaths] = useState<string[] | null>(null);
 
   const toggleFlag = useCallback((path: string) => {
     setFlags((prev) => {
@@ -57,10 +57,14 @@ export default function App() {
 
   const openExport = useCallback(
     (images: ImageEntry[]) => {
-      setExportImages(images.filter((im) => flags.has(im.path)));
+      setExportPaths(images.filter((im) => flags.has(im.path)).map((im) => im.path));
     },
     [flags],
   );
+
+  const openExportAll = useCallback(() => {
+    setExportPaths(Array.from(flags));
+  }, [flags]);
 
   return (
     <div className="app">
@@ -78,9 +82,11 @@ export default function App() {
       {view.kind === "browse" && (
         <Browser
           initialPath={view.path}
+          flagCount={flags.size}
           onHome={() => setView({ kind: "home" })}
           onOpen={openFolder}
           onOpenViewer={(images, index) => setViewer({ images, index })}
+          onExportAll={openExportAll}
         />
       )}
       {view.kind === "grid" && (
@@ -107,11 +113,8 @@ export default function App() {
           onClose={() => setViewer(null)}
         />
       )}
-      {exportImages && (
-        <ExportModal
-          flaggedImages={exportImages}
-          onClose={() => setExportImages(null)}
-        />
+      {exportPaths && (
+        <ExportModal paths={exportPaths} onClose={() => setExportPaths(null)} />
       )}
     </div>
   );
