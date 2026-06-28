@@ -43,11 +43,19 @@ export default function Viewer({
     });
   }, [idx, images]);
 
+  // Only render a window of filmstrip thumbnails around the current photo, so a
+  // folder with thousands of images doesn't mount thousands of <img> at once
+  // (which floods the image protocol and stalls the full-size load).
+  const FS_WINDOW = 30;
+  const fsLo = Math.max(0, idx - FS_WINDOW);
+  const fsHi = Math.min(images.length, idx + FS_WINDOW + 1);
+  const fsSlice = images.slice(fsLo, fsHi);
+
   // keep the active filmstrip thumb centred
   useEffect(() => {
-    const el = stripRef.current?.children[idx] as HTMLElement | undefined;
+    const el = stripRef.current?.children[idx - fsLo] as HTMLElement | undefined;
     el?.scrollIntoView({ inline: "center", block: "nearest" });
-  }, [idx]);
+  }, [idx, fsLo]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -149,25 +157,32 @@ export default function Viewer({
 
       <div className="filmstrip" onClick={(e) => e.stopPropagation()}>
         <div className="fs-track" ref={stripRef}>
-          {images.map((im, i) => (
-            <button
-              key={im.path}
-              className={
-                "fs-thumb" +
-                (i === idx ? " on" : "") +
-                (flags.has(im.path) ? " flagged" : "")
-              }
-              title={im.name}
-              onClick={() => setIdx(i)}
-            >
-              <img src={imageUrl(im.path, 120)} loading="lazy" draggable={false} />
-              {flags.has(im.path) && (
-                <span className="fs-flag">
-                  <FlagFill size={10} />
-                </span>
-              )}
-            </button>
-          ))}
+          {fsSlice.map((im, j) => {
+            const i = fsLo + j;
+            return (
+              <button
+                key={im.path}
+                className={
+                  "fs-thumb" +
+                  (i === idx ? " on" : "") +
+                  (flags.has(im.path) ? " flagged" : "")
+                }
+                title={im.name}
+                onClick={() => setIdx(i)}
+              >
+                <img
+                  src={imageUrl(im.path, 120)}
+                  loading="lazy"
+                  draggable={false}
+                />
+                {flags.has(im.path) && (
+                  <span className="fs-flag">
+                    <FlagFill size={10} />
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

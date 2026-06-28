@@ -172,10 +172,7 @@ async fn list_dir(path: String) -> Result<DirListing, String> {
 
 fn list_dir_blocking(path: String) -> Result<DirListing, String> {
     let p = PathBuf::from(&path);
-    let rd = std::fs::read_dir(&p).map_err(|e| {
-        log::warn!("[aspect] list_dir failed for {path}: {e}");
-        e.to_string()
-    })?;
+    let rd = std::fs::read_dir(&p).map_err(|e| e.to_string())?;
 
     let mut folders: Vec<FolderEntry> = Vec::new();
     let mut image_count = 0usize;
@@ -202,11 +199,6 @@ fn list_dir_blocking(path: String) -> Result<DirListing, String> {
     folders.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     let parent = p.parent().map(|x| x.to_string_lossy().to_string());
 
-    log::info!(
-        "[aspect] list_dir {path}: {} folders, {image_count} images",
-        folders.len()
-    );
-
     Ok(DirListing {
         path,
         parent,
@@ -226,10 +218,7 @@ async fn list_files(path: String) -> Result<Vec<FileEntry>, String> {
 
 fn list_files_blocking(path: String) -> Result<Vec<FileEntry>, String> {
     let p = PathBuf::from(&path);
-    let rd = std::fs::read_dir(&p).map_err(|e| {
-        log::warn!("[aspect] list_files failed for {path}: {e}");
-        e.to_string()
-    })?;
+    let rd = std::fs::read_dir(&p).map_err(|e| e.to_string())?;
 
     let mut files: Vec<FileEntry> = Vec::new();
     for entry in rd.flatten() {
@@ -260,11 +249,6 @@ fn list_files_blocking(path: String) -> Result<Vec<FileEntry>, String> {
     }
 
     files.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-    let images = files.iter().filter(|f| f.image).count();
-    log::info!(
-        "[aspect] list_files {path}: {} files, {images} images",
-        files.len()
-    );
     Ok(files)
 }
 
@@ -439,19 +423,14 @@ fn handle_image(req: &Request<Vec<u8>>) -> Response<Vec<u8>> {
     }
 
     if path.is_empty() {
-        log::warn!("[aspect] img request with no path (query: {query})");
         return not_found();
     }
     let pbuf = PathBuf::from(&path);
 
     let (data, ctype) = match load_image_bytes(&pbuf) {
         Some(d) => d,
-        None => {
-            log::warn!("[aspect] img could not load {path}");
-            return not_found();
-        }
+        None => return not_found(),
     };
-    log::info!("[aspect] img {path} (thumb={thumb:?}, {} bytes read)", data.len());
 
     let (bytes, ctype) = match thumb {
         Some(t) => match make_thumb(&data, t) {
@@ -474,11 +453,11 @@ fn handle_image(req: &Request<Vec<u8>>) -> Response<Vec<u8>> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
-        // Heavy decode work runs off the UI thread via the async responder.
+        // Decode work runs on the bounded blocking pool (not a fresh thread per
+        // request) so a folder with thousands of thumbnails can't exhaust threads.
         .register_asynchronous_uri_scheme_protocol("aspect", |_ctx, req, responder| {
-            std::thread::spawn(move || {
+            tauri::async_runtime::spawn_blocking(move || {
                 responder.respond(handle_image(&req));
             });
         })

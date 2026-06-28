@@ -233,12 +233,14 @@ body {
 }
 
 .recent-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(224px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 14px;
 }
 .recent-card {
   position: relative;
+  width: 232px;
   display: flex;
   flex-direction: column;
   gap: 3px;
