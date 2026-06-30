@@ -77,6 +77,7 @@ export default function Grid({
   onOpenViewer,
   onExport,
   onClearFlags,
+  onImageContext,
   onLoaded,
 }: {
   path: string;
@@ -87,6 +88,7 @@ export default function Grid({
   onOpenViewer: (images: ImageEntry[], index: number) => void;
   onExport: (images: ImageEntry[]) => void;
   onClearFlags: (paths: string[]) => void;
+  onImageContext: (e: React.MouseEvent, path: string) => void;
   onLoaded: (path: string, name: string, count: number) => void;
 }) {
   const [files, setFiles] = useState<ImageEntry[]>([]);
@@ -153,6 +155,11 @@ export default function Grid({
     setDensityState(d);
     setDensity(d);
   };
+  const DENS_ORDER: Density[] = ["s", "m", "l"];
+  const stepDensity = (dir: number) => {
+    const i = Math.min(2, Math.max(0, DENS_ORDER.indexOf(density) + dir));
+    chooseDensity(DENS_ORDER[i]);
+  };
   const chooseSort = (k: SortKey) => {
     setSortState((prev) => {
       const next: SortPref =
@@ -210,11 +217,34 @@ export default function Grid({
       } else if (e.key === "f" || e.key === "F") {
         const f = visible[sel];
         if (f?.image) onToggleFlag(f.path);
+      } else if (e.ctrlKey && (e.key === "=" || e.key === "+")) {
+        e.preventDefault();
+        stepDensity(1);
+      } else if (e.ctrlKey && (e.key === "-" || e.key === "_")) {
+        e.preventDefault();
+        stepDensity(-1);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [visible, sel, colCount, openImage, onToggleFlag]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, sel, colCount, openImage, onToggleFlag, density]);
+
+  // Ctrl + mouse wheel zooms thumbnail size (native non-passive listener so we
+  // can preventDefault the webview's page zoom).
+  useEffect(() => {
+    const g = gridRef.current;
+    if (!g) return;
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+        stepDensity(e.deltaY < 0 ? 1 : -1);
+      }
+    };
+    g.addEventListener("wheel", onWheel, { passive: false });
+    return () => g.removeEventListener("wheel", onWheel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [density]);
 
   useEffect(() => {
     const el = gridRef.current?.children[sel] as HTMLElement | undefined;
@@ -356,6 +386,7 @@ export default function Grid({
                   "tile" + (i === sel ? " sel" : "") + (on ? " flagged" : "")
                 }
                 onClick={() => setSel(i)}
+                onContextMenu={(e) => onImageContext(e, f.path)}
               >
                 <div className="tile-img">
                   <img

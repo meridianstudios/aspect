@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { listDir, listFiles } from "../lib/api";
+import { listDir, listFiles, imageUrl } from "../lib/api";
 import type { DirListing, ImageEntry } from "../types";
 import {
   getImagesOnly,
@@ -16,20 +16,28 @@ import {
   ChevronRight,
   Picture,
   FileIcon,
+  Star,
+  StarFill,
 } from "../lib/icons";
 import { baseName, crumbs, fmtSize } from "../lib/util";
 import FilterMenu from "./FilterMenu";
 
 export default function Browser({
   path,
+  isPinned,
   onNavigate,
+  onTogglePin,
   onOpen,
   onOpenViewer,
+  onImageContext,
 }: {
   path: string | null;
+  isPinned: boolean;
   onNavigate: (path: string) => void;
+  onTogglePin: () => void;
   onOpen: (path: string, name: string) => void;
   onOpenViewer: (images: ImageEntry[], index: number) => void;
+  onImageContext: (e: React.MouseEvent, path: string) => void;
 }) {
   const [listing, setListing] = useState<DirListing | null>(null);
   const [files, setFiles] = useState<ImageEntry[]>([]);
@@ -131,6 +139,15 @@ export default function Browser({
         {path === null && <h1 className="cbar-title">Browse</h1>}
         <div className="spacer" />
         {path !== null && (
+          <button
+            className={"iconbtn" + (isPinned ? " on" : "")}
+            title={isPinned ? "Remove from Quick access" : "Pin to Quick access"}
+            onClick={onTogglePin}
+          >
+            {isPinned ? <StarFill size={18} /> : <Star size={18} />}
+          </button>
+        )}
+        {path !== null && (
           <FilterMenu
             imagesOnly={imagesOnly}
             onImagesOnly={toggleImagesOnly}
@@ -204,9 +221,17 @@ export default function Browser({
                       key={f.path}
                       className="file-row image"
                       onClick={() => openImage(f)}
+                      onContextMenu={(e) => onImageContext(e, f.path)}
                       title="Open"
                     >
-                      <Picture size={18} />
+                      <span className="row-thumb">
+                        <img
+                          src={imageUrl(f.path, 64)}
+                          loading="lazy"
+                          alt=""
+                          draggable={false}
+                        />
+                      </span>
                       <span className="file-row-name">{f.name}</span>
                       {f.raw && <span className="raw-tag">RAW</span>}
                       <span className="file-row-size">{fmtSize(f.size)}</span>

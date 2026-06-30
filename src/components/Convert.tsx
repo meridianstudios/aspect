@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { convertImages, imageUrl, openFolder } from "../lib/api";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { convertImages, imageUrl, openFolder, isTauri } from "../lib/api";
 import type { ConvertResult } from "../types";
 import { Convert as ConvertIcon, Close, Check } from "../lib/icons";
 import { baseName } from "../lib/util";
@@ -20,15 +21,52 @@ const IMG_EXTS = [
   "rw2", "pef", "srw", "dcr", "kdc", "mrw", "x3f", "3fr", "erf", "iiq", "raw",
   "rwl",
 ];
+const isImg = (p: string) => {
+  const i = p.lastIndexOf(".");
+  return i >= 0 && IMG_EXTS.includes(p.slice(i + 1).toLowerCase());
+};
 
-export default function Convert() {
-  const [files, setFiles] = useState<string[]>([]);
+export default function Convert({
+  files,
+  onChange,
+}: {
+  files: string[];
+  onChange: Dispatch<SetStateAction<string[]>>;
+}) {
   const [format, setFormat] = useState("png");
   const [quality, setQuality] = useState(90);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState<ConvertResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  // OS file drag-and-drop onto the window
+  useEffect(() => {
+    if (!isTauri) return;
+    let un: (() => void) | undefined;
+    getCurrentWebview()
+      .onDragDropEvent((e) => {
+        const p = e.payload as { type: string; paths?: string[] };
+        if (p.type === "enter" || p.type === "over") setDragOver(true);
+        else if (p.type === "leave") setDragOver(false);
+        else if (p.type === "drop") {
+          setDragOver(false);
+          const imgs = (p.paths || []).filter(isImg);
+          if (imgs.length) {
+            onChange((prev) => Array.from(new Set([...prev, ...imgs])));
+            setResult(null);
+          }
+        }
+      })
+      .then((u) => {
+        un = u;
+      })
+      .catch(() => {});
+    return () => {
+      if (un) un();
+    };
+  }, [onChange]);
 
   const addFiles = async () => {
     const sel = await openDialog({
@@ -38,7 +76,7 @@ export default function Convert() {
     });
     if (!sel) return;
     const arr = Array.isArray(sel) ? sel : [sel];
-    setFiles((prev) => Array.from(new Set([...prev, ...arr])));
+    onChange((prev) => Array.from(new Set([...prev, ...arr])));
     setResult(null);
   };
 
@@ -76,15 +114,12 @@ export default function Convert() {
           <ConvertIcon size={16} />
           <span className="gt-name">Convert</span>
         </div>
+        <span className="count-pill">
+          {files.length} image{files.length === 1 ? "" : "s"}
+        </span>
         <div className="spacer" />
         {files.length > 0 && (
-          <button
-            className="btn ghost"
-            onClick={() => {
-              setFiles([]);
-              setResult(null);
-            }}
-          >
+          <button className="btn ghost" onClick={() => onChange([])}>
             Clear
           </button>
         )}
@@ -95,17 +130,18 @@ export default function Convert() {
 
       <div className="convert-body">
         <div className="convert-main">
-          {files.length === 0 ? (
-            <button className="convert-drop" onClick={addFiles}>
-              <ConvertIcon size={40} />
-              <h2>Convert image files</h2>
-              <p className="muted">
-                Pick images and turn them into PNG, JPEG, WebP, BMP or TIFF.
-                Your originals stay where they are.
-              </p>
-              <span className="btn primary">Add images</span>
-            </button>
-          ) : (
+          <button
+            className={"convert-drop" + (dragOver ? " over" : "")}
+            onClick={addFiles}
+          >
+            <ConvertIcon size={30} />
+            <div className="cd-text">
+              <b>Add images to convert</b>
+              <span className="muted">Click to browse, or drop image files here</span>
+            </div>
+          </button>
+
+          {files.length > 0 && (
             <div className="convert-grid">
               {files.map((p) => (
                 <div className="conv-tile" key={p}>
@@ -120,7 +156,7 @@ export default function Convert() {
                       className="conv-x"
                       title="Remove"
                       onClick={() =>
-                        setFiles((prev) => prev.filter((x) => x !== p))
+                        onChange((prev) => prev.filter((x) => x !== p))
                       }
                     >
                       <Close size={14} />

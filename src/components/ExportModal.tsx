@@ -1,8 +1,17 @@
 import { useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { exportFlagged, openFolder } from "../lib/api";
-import type { ExportResult } from "../types";
-import { Export, Close, Check } from "../lib/icons";
+import { convertImages, exportFlagged, openFolder } from "../lib/api";
+import { Export, Close, Check, Folder } from "../lib/icons";
+import { baseName } from "../lib/util";
+
+const FORMATS: [string, string][] = [
+  ["original", "Original"],
+  ["png", "PNG"],
+  ["jpeg", "JPEG"],
+  ["webp", "WebP"],
+  ["bmp", "BMP"],
+  ["tiff", "TIFF"],
+];
 
 export default function ExportModal({
   paths,
@@ -11,20 +20,43 @@ export default function ExportModal({
   paths: string[];
   onClose: () => void;
 }) {
+  const [format, setFormat] = useState("original");
+  const [quality, setQuality] = useState(90);
+  const [dir, setDir] = useState<string | null>(null);
+  const [subfolder, setSubfolder] = useState("");
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<ExportResult | null>(null);
+  const [result, setResult] = useState<{
+    count: number;
+    failed: string[];
+    dest: string;
+  } | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
+  const chooseDir = async () => {
+    const d = await openDialog({ directory: true, title: "Choose a destination" });
+    if (typeof d === "string") setDir(d);
+  };
+
   const run = async () => {
+    if (!dir) return;
+    const sep = dir.includes("\\") ? "\\" : "/";
+    const sub = subfolder.trim().replace(/[\\/]+$/, "");
+    const dest = sub ? dir + sep + sub : dir;
     setErr(null);
-    const dest = await openDialog({
-      directory: true,
-      title: "Choose export destination",
-    });
-    if (typeof dest !== "string") return;
     setBusy(true);
     try {
-      setResult(await exportFlagged(paths, dest));
+      if (format === "original") {
+        const r = await exportFlagged(paths, dest);
+        setResult({ count: r.copied, failed: r.failed, dest: r.dest });
+      } else {
+        const r = await convertImages(
+          paths,
+          format,
+          format === "jpeg" ? quality : 90,
+          dest,
+        );
+        setResult({ count: r.converted, failed: r.failed, dest: r.dest });
+      }
     } catch (e) {
       setErr(String(e));
     } finally {
@@ -37,7 +69,8 @@ export default function ExportModal({
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h3>
-            <Export size={18} /> Export flagged photos
+            <Export size={18} /> Export {paths.length} flagged photo
+            {paths.length === 1 ? "" : "s"}
           </h3>
           <button className="iconbtn" onClick={onClose}>
             <Close size={18} />
@@ -46,14 +79,67 @@ export default function ExportModal({
 
         {!result ? (
           <div className="modal-body">
-            <p>
-              <span className="big-num">{paths.length}</span> flagged photo
-              {paths.length === 1 ? "" : "s"} ready to copy.
-            </p>
-            <p className="muted">
-              The originals stay where they are. Aspect copies the flagged files
-              into a folder you choose.
-            </p>
+            <div className="ex-row">
+              <div className="ex-label">Format</div>
+              <div className="seg wide">
+                {FORMATS.map(([v, l]) => (
+                  <button
+                    key={v}
+                    className={"seg-btn" + (format === v ? " on" : "")}
+                    onClick={() => setFormat(v)}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+              <p className="ex-hint muted">
+                {format === "original"
+                  ? "Copies the flagged files as-is. Originals stay put."
+                  : `Converts the flagged photos to ${format.toUpperCase()} as it exports.`}
+              </p>
+            </div>
+
+            {format === "jpeg" && (
+              <div className="ex-row">
+                <div className="ex-label">
+                  JPEG quality <span className="cs-val">{quality}</span>
+                </div>
+                <input
+                  className="cs-range"
+                  type="range"
+                  min={50}
+                  max={100}
+                  value={quality}
+                  onChange={(e) => setQuality(+e.target.value)}
+                />
+              </div>
+            )}
+
+            <div className="ex-row">
+              <div className="ex-label">Destination</div>
+              <button className="dest-pick" onClick={chooseDir}>
+                <Folder size={16} />
+                <span className="dest-path">
+                  {dir ? baseName(dir) : "Choose a folder…"}
+                </span>
+              </button>
+              {dir && <p className="ex-hint muted path-line">{dir}</p>}
+            </div>
+
+            <div className="ex-row">
+              <div className="ex-label">New subfolder (optional)</div>
+              <input
+                className="ex-input"
+                type="text"
+                placeholder="e.g. Selects"
+                value={subfolder}
+                onChange={(e) => setSubfolder(e.target.value)}
+              />
+              <p className="ex-hint muted">
+                Aspect creates it inside the destination if it doesn't exist.
+              </p>
+            </div>
+
             {err && <div className="error">{err}</div>}
             <div className="modal-actions">
               <button className="btn ghost" onClick={onClose}>
@@ -61,10 +147,14 @@ export default function ExportModal({
               </button>
               <button
                 className="btn primary"
-                disabled={busy || paths.length === 0}
+                disabled={busy || !dir || paths.length === 0}
                 onClick={run}
               >
-                {busy ? "Copying…" : "Choose destination and export"}
+                {busy
+                  ? "Working…"
+                  : format === "original"
+                    ? "Export"
+                    : "Export and convert"}
               </button>
             </div>
           </div>
@@ -74,11 +164,9 @@ export default function ExportModal({
               <Check size={30} />
             </div>
             <p>
-              <b>{result.copied}</b> photo{result.copied === 1 ? "" : "s"} copied
-              {result.failed.length
-                ? `, ${result.failed.length} failed`
-                : ""}
-              .
+              <b>{result.count}</b> photo{result.count === 1 ? "" : "s"}{" "}
+              {format === "original" ? "exported" : `converted to ${format.toUpperCase()}`}
+              {result.failed.length ? `, ${result.failed.length} failed` : ""}.
             </p>
             <p className="muted path-line">{result.dest}</p>
             {result.failed.length > 0 && (

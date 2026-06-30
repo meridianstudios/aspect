@@ -2,6 +2,7 @@ import type { Recent } from "../types";
 
 const RECENTS_KEY = "aspect.recents";
 const FLAGS_KEY = "aspect.flags";
+const PINNED_KEY = "aspect.pinned";
 const IMAGES_ONLY_KEY = "aspect.imagesOnly";
 const DENSITY_KEY = "aspect.density";
 const MAX_RECENTS = 24;
@@ -60,6 +61,25 @@ export function getTypeFilter(): TypeFilter {
 
 export function setTypeFilter(t: TypeFilter): void {
   localStorage.setItem(TYPE_KEY, t);
+}
+
+// ---- pinned folders (Quick access) ----
+
+export interface Pinned {
+  path: string;
+  name: string;
+}
+
+export function getPinned(): Pinned[] {
+  try {
+    return JSON.parse(localStorage.getItem(PINNED_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+export function writePinned(list: Pinned[]): void {
+  localStorage.setItem(PINNED_KEY, JSON.stringify(list));
 }
 
 // ---- recently opened folders ----

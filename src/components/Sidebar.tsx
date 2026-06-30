@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import { listVolumes } from "../lib/api";
 import type { Volume } from "../types";
+import type { Pinned } from "../lib/store";
 import {
   Logo,
   Home as HomeIcon,
@@ -12,26 +14,33 @@ import {
   Card,
   FlagFill,
   Export,
+  Close,
 } from "../lib/icons";
 
 const QUICK_ORDER = ["Pictures", "Downloads", "Desktop", "Home"];
 
 export default function Sidebar({
   view,
+  pinned,
   onHome,
   onBrowse,
   onConvert,
   onExplore,
+  onUnpin,
   flagCount,
   onExportAll,
+  onClearAllFlags,
 }: {
   view: string;
+  pinned: Pinned[];
   onHome: () => void;
   onBrowse: () => void;
   onConvert: () => void;
   onExplore: (path: string) => void;
+  onUnpin: (path: string) => void;
   flagCount: number;
   onExportAll: () => void;
+  onClearAllFlags: () => void;
 }) {
   const [volumes, setVolumes] = useState<Volume[]>([]);
 
@@ -45,6 +54,15 @@ export default function Sidebar({
     .filter((v) => v.kind === "quick")
     .sort((a, b) => QUICK_ORDER.indexOf(a.name) - QUICK_ORDER.indexOf(b.name));
   const drives = volumes.filter((v) => v.kind !== "quick");
+
+  const clearAll = async () => {
+    if (flagCount === 0) return;
+    const ok = await confirm(
+      "This unflags every photo in every folder. It can't be undone.",
+      { title: "Clear all flags", kind: "warning" },
+    );
+    if (ok) onClearAllFlags();
+  };
 
   return (
     <aside className="sidebar">
@@ -80,6 +98,30 @@ export default function Sidebar({
       </nav>
 
       <div className="side-scroll">
+        {pinned.length > 0 && (
+          <div className="side-group">
+            <div className="side-label">Pinned</div>
+            {pinned.map((p) => (
+              <div key={p.path} className="side-pin">
+                <button
+                  className="side-pin-main"
+                  onClick={() => onExplore(p.path)}
+                  title={p.path}
+                >
+                  <Folder size={16} />
+                  <span className="side-sub-name">{p.name}</span>
+                </button>
+                <button
+                  className="side-unpin"
+                  title="Unpin"
+                  onClick={() => onUnpin(p.path)}
+                >
+                  <Close size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         {quick.length > 0 && (
           <div className="side-group">
             <div className="side-label">Quick access</div>
@@ -119,8 +161,15 @@ export default function Sidebar({
       </div>
 
       <div className="side-foot">
-        <div className="side-flag">
-          <FlagFill size={14} /> {flagCount} flagged
+        <div className="side-flag-row">
+          <span className="side-flag">
+            <FlagFill size={14} /> {flagCount} flagged in all folders
+          </span>
+          {flagCount > 0 && (
+            <button className="side-clear" onClick={clearAll}>
+              Clear all
+            </button>
+          )}
         </div>
         <button
           className="btn primary sm wide"

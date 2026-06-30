@@ -175,6 +175,31 @@ export const Info = (p: IconProps) => (
   </Svg>
 );
 
+export const Star = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 3.5l2.6 5.3 5.8.9-4.2 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8L3.4 9.7l5.8-.9z" />
+  </Svg>
+);
+
+export const StarFill = ({ size = 20, ...rest }: IconProps) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.6}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...rest}
+  >
+    <path
+      d="M12 3.5l2.6 5.3 5.8.9-4.2 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8L3.4 9.7l5.8-.9z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
 export const FileIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M7 3h7l4 4v12.5A1.5 1.5 0 0 1 16.5 21h-9A1.5 1.5 0 0 1 6 19.5v-15A1.5 1.5 0 0 1 7.5 3z" />
