@@ -18,7 +18,6 @@ import {
   type TypeFilter,
 } from "../lib/store";
 import {
-  Logo,
   FolderOpen,
   Flag,
   FlagFill,
@@ -74,8 +73,7 @@ export default function Grid({
   name,
   flags,
   onToggleFlag,
-  onHome,
-  onBrowse,
+  onBack,
   onOpenViewer,
   onExport,
   onClearFlags,
@@ -85,8 +83,7 @@ export default function Grid({
   name: string;
   flags: Set<string>;
   onToggleFlag: (p: string) => void;
-  onHome: () => void;
-  onBrowse: () => void;
+  onBack: () => void;
   onOpenViewer: (images: ImageEntry[], index: number) => void;
   onExport: (images: ImageEntry[]) => void;
   onClearFlags: (paths: string[]) => void;
@@ -232,14 +229,8 @@ export default function Grid({
 
   return (
     <div className="view grid-view">
-      <header className="topbar">
-        <div className="brand" role="button" onClick={onHome}>
-          <span className="brand-mark">
-            <Logo size={22} />
-          </span>
-          <span className="brand-name">Aspect</span>
-        </div>
-        <button className="iconbtn" title="Back to folders" onClick={onBrowse}>
+      <header className="cbar">
+        <button className="iconbtn" title="Back to folder" onClick={onBack}>
           <ChevronLeft size={18} />
         </button>
         <div className="grid-title">

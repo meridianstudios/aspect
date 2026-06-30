@@ -3,13 +3,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { convertImages, imageUrl, openFolder } from "../lib/api";
 import type { ConvertResult } from "../types";
-import {
-  Logo,
-  ChevronLeft,
-  Convert as ConvertIcon,
-  Close,
-  Check,
-} from "../lib/icons";
+import { Convert as ConvertIcon, Close, Check } from "../lib/icons";
 import { baseName } from "../lib/util";
 
 const FORMATS: [string, string][] = [
@@ -27,7 +21,7 @@ const IMG_EXTS = [
   "rwl",
 ];
 
-export default function Convert({ onHome }: { onHome: () => void }) {
+export default function Convert() {
   const [files, setFiles] = useState<string[]>([]);
   const [format, setFormat] = useState("png");
   const [quality, setQuality] = useState(90);
@@ -77,16 +71,7 @@ export default function Convert({ onHome }: { onHome: () => void }) {
 
   return (
     <div className="view convert">
-      <header className="topbar">
-        <div className="brand" role="button" onClick={onHome}>
-          <span className="brand-mark">
-            <Logo size={22} />
-          </span>
-          <span className="brand-name">Aspect</span>
-        </div>
-        <button className="iconbtn" title="Home" onClick={onHome}>
-          <ChevronLeft size={18} />
-        </button>
+      <header className="cbar">
         <div className="grid-title">
           <ConvertIcon size={16} />
           <span className="gt-name">Convert</span>

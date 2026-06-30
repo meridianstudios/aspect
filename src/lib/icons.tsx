@@ -1,4 +1,5 @@
 import type { SVGProps } from "react";
+import logoUrl from "../assets/aspectlogo.png";
 
 type IconProps = { size?: number } & SVGProps<SVGSVGElement>;
 
@@ -20,17 +21,17 @@ function Svg({ size = 20, children, ...rest }: IconProps & { children: React.Rea
   );
 }
 
-/** The Aspect mark: a viewfinder frame around a lens. */
+/** The Aspect mark (the app logo). */
 export function Logo({ size = 22 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M4 8.5V6a2 2 0 0 1 2-2h2.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M15.5 4H18a2 2 0 0 1 2 2v2.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M20 15.5V18a2 2 0 0 1-2 2h-2.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M8.5 20H6a2 2 0 0 1-2-2v-2.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="12" cy="12" r="3.1" stroke="currentColor" strokeWidth="1.9" />
-      <circle cx="12" cy="12" r="0.7" fill="currentColor" stroke="none" />
-    </svg>
+    <img
+      src={logoUrl}
+      width={size}
+      height={size}
+      alt=""
+      aria-hidden
+      style={{ display: "block", objectFit: "contain" }}
+    />
   );
 }
 

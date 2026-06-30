@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import Sidebar from "./components/Sidebar";
 import Home from "./components/Home";
 import Browser from "./components/Browser";
 import Grid from "./components/Grid";
@@ -8,14 +9,14 @@ import ExportModal from "./components/ExportModal";
 import { addRecent, getFlags, writeFlags } from "./lib/store";
 import type { ImageEntry } from "./types";
 
-type View =
-  | { kind: "home" }
-  | { kind: "browse"; path?: string }
-  | { kind: "grid"; path: string; name: string }
-  | { kind: "convert" };
+type ViewKind = "home" | "browse" | "grid" | "convert";
 
 export default function App() {
-  const [view, setView] = useState<View>({ kind: "home" });
+  const [view, setView] = useState<ViewKind>("home");
+  const [browsePath, setBrowsePath] = useState<string | null>(null);
+  const [folder, setFolder] = useState<{ path: string; name: string } | null>(
+    null,
+  );
   const [flags, setFlags] = useState<Set<string>>(
     () => new Set(Object.keys(getFlags())),
   );
@@ -45,64 +46,83 @@ export default function App() {
   }, []);
 
   const openFolder = useCallback((path: string, name: string) => {
-    setView({ kind: "grid", path, name });
+    setFolder({ path, name });
+    setView("grid");
+  }, []);
+
+  const goExplore = useCallback((path: string) => {
+    setBrowsePath(path);
+    setView("browse");
   }, []);
 
   const recordRecent = useCallback(
-    (path: string, name: string, count: number) => {
-      addRecent({ path, name, openedAt: Date.now(), count });
-    },
+    (path: string, name: string, count: number) =>
+      addRecent({ path, name, openedAt: Date.now(), count }),
     [],
   );
 
   const openExport = useCallback(
-    (images: ImageEntry[]) => {
-      setExportPaths(images.filter((im) => flags.has(im.path)).map((im) => im.path));
-    },
+    (images: ImageEntry[]) =>
+      setExportPaths(
+        images.filter((im) => flags.has(im.path)).map((im) => im.path),
+      ),
+    [flags],
+  );
+  const openExportAll = useCallback(
+    () => setExportPaths(Array.from(flags)),
     [flags],
   );
 
-  const openExportAll = useCallback(() => {
-    setExportPaths(Array.from(flags));
-  }, [flags]);
+  const openViewer = useCallback(
+    (images: ImageEntry[], index: number) => setViewer({ images, index }),
+    [],
+  );
 
   return (
     <div className="app">
-      {view.kind === "home" && (
-        <Home
-          onBrowse={() => setView({ kind: "browse" })}
-          onExplore={(path) => setView({ kind: "browse", path })}
-          onOpen={openFolder}
-          onConvert={() => setView({ kind: "convert" })}
-        />
-      )}
-      {view.kind === "convert" && (
-        <Convert onHome={() => setView({ kind: "home" })} />
-      )}
-      {view.kind === "browse" && (
-        <Browser
-          initialPath={view.path}
+      <div className="app-shell">
+        <Sidebar
+          view={view}
+          onHome={() => setView("home")}
+          onBrowse={() => setView("browse")}
+          onConvert={() => setView("convert")}
+          onExplore={goExplore}
           flagCount={flags.size}
-          onHome={() => setView({ kind: "home" })}
-          onOpen={openFolder}
-          onOpenViewer={(images, index) => setViewer({ images, index })}
           onExportAll={openExportAll}
         />
-      )}
-      {view.kind === "grid" && (
-        <Grid
-          path={view.path}
-          name={view.name}
-          flags={flags}
-          onToggleFlag={toggleFlag}
-          onHome={() => setView({ kind: "home" })}
-          onBrowse={() => setView({ kind: "browse" })}
-          onOpenViewer={(images, index) => setViewer({ images, index })}
-          onExport={openExport}
-          onClearFlags={clearFlags}
-          onLoaded={recordRecent}
-        />
-      )}
+        <div className="content">
+          {view === "home" && (
+            <Home
+              onBrowse={() => setView("browse")}
+              onExplore={goExplore}
+              onOpen={openFolder}
+              onConvert={() => setView("convert")}
+            />
+          )}
+          {view === "browse" && (
+            <Browser
+              path={browsePath}
+              onNavigate={setBrowsePath}
+              onOpen={openFolder}
+              onOpenViewer={openViewer}
+            />
+          )}
+          {view === "grid" && folder && (
+            <Grid
+              path={folder.path}
+              name={folder.name}
+              flags={flags}
+              onToggleFlag={toggleFlag}
+              onBack={() => goExplore(folder.path)}
+              onOpenViewer={openViewer}
+              onExport={openExport}
+              onClearFlags={clearFlags}
+              onLoaded={recordRecent}
+            />
+          )}
+          {view === "convert" && <Convert />}
+        </div>
+      </div>
 
       {viewer && (
         <Viewer
